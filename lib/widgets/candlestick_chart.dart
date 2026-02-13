@@ -123,6 +123,19 @@ class CandlestickChart extends StatefulWidget {
   }
 }
 
+enum _TrendDragTarget {
+  start,
+  end,
+  body,
+}
+
+class _TrendDragHit {
+  const _TrendDragHit({required this.id, required this.target});
+
+  final String id;
+  final _TrendDragTarget target;
+}
+
 class _CandlestickChartState extends State<CandlestickChart> {
   late final ChartViewController _controller;
   double _lastWidth = 0.0;
@@ -136,6 +149,9 @@ class _CandlestickChartState extends State<CandlestickChart> {
   double? _pendingTrendLineStartPrice;
   final List<TrendLine> _trendLines = [];
   String? _selectedTrendLineId;
+  String? _draggingTrendLineId;
+  _TrendDragTarget? _draggingTrendTarget;
+  Offset? _lastDragPosition;
   
   // ダブルクリック検出用
   DateTime? _lastTapTime;
@@ -913,6 +929,16 @@ class _CandlestickChartState extends State<CandlestickChart> {
   }
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
+    if (_draggingTrendLineId != null && _draggingTrendTarget != null) {
+      final RenderBox renderBox = context.findRenderObject() as RenderBox;
+      final Offset localPosition = renderBox.globalToLocal(details.focalPoint);
+      final double chartWidth = renderBox.size.width;
+      final double chartHeight = (widget.height - 80).clamp(1.0, double.infinity);
+
+      _updateDraggingTrendLine(localPosition, chartWidth, chartHeight);
+      return;
+    }
+
     setState(() {
       if (_controller.isKlineCountMode) {
         // K線統計モード：ドラッグ選択を処理
@@ -928,16 +954,46 @@ class _CandlestickChartState extends State<CandlestickChart> {
 
   void _onScaleStart(ScaleStartDetails details) {
     if (_isRightClickDeleting) return; // 右クリック削除中は処理しない
+
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    final Offset localPosition = renderBox.globalToLocal(details.focalPoint);
+    final double chartWidth = renderBox.size.width;
+    final double chartHeight = (widget.height - 80).clamp(1.0, double.infinity);
+
+    final dragHit = _hitTestTrendLineDragTarget(
+      localPosition.dx,
+      localPosition.dy,
+      chartWidth,
+      chartHeight,
+    );
+
+    if (dragHit != null) {
+      setState(() {
+        _selectedTrendLineId = dragHit.id;
+        _draggingTrendLineId = dragHit.id;
+        _draggingTrendTarget = dragHit.target;
+        _lastDragPosition = localPosition;
+      });
+      return;
+    }
+
     if (_controller.isKlineCountMode) {
       // K線統計モード：選択開始
-      final RenderBox renderBox = context.findRenderObject() as RenderBox;
-      final Offset localPosition = renderBox.globalToLocal(details.focalPoint);
       _controller.startSelection(localPosition.dx);
     }
     // 通常モード：特別な処理は不要
   }
 
   void _onScaleEnd(ScaleEndDetails details) {
+    if (_draggingTrendLineId != null) {
+      setState(() {
+        _draggingTrendLineId = null;
+        _draggingTrendTarget = null;
+        _lastDragPosition = null;
+      });
+      return;
+    }
+
     if (_controller.isKlineCountMode) {
       // K線統計モード：選択完了
       final RenderBox renderBox = context.findRenderObject() as RenderBox;
@@ -1356,6 +1412,13 @@ class _CandlestickChartState extends State<CandlestickChart> {
     if (chartY < 0 || chartY > drawableChartHeight) {
       return;
     }
+
+    // object優先: 先に既存オブジェクトへのヒット判定を行う
+    if (_handleObjectTapPriority(chartX, chartY, chartWidth, drawableChartHeight)) {
+      _lastTapTime = null;
+      _lastTapPosition = null;
+      return;
+    }
     
     // 右クリックかどうかチェック（K線統計モードで）
     if (_controller.isKlineCountMode && details.kind == PointerDeviceKind.mouse) {
@@ -1376,14 +1439,6 @@ class _CandlestickChartState extends State<CandlestickChart> {
       return;
     }
 
-    final nearestTrendLineId = _findNearestTrendLineId(chartX, chartY, chartWidth, drawableChartHeight);
-    if (nearestTrendLineId != null) {
-      setState(() {
-        _selectedTrendLineId = nearestTrendLineId;
-      });
-      return;
-    }
-
     if (_controller.isVerticalLineMode) {
       // 縦線描画モードで、クリック位置に縦線を追加
       Log.debug('ChartInteraction', 'マウスクリック: globalPosition=${details.globalPosition}, localPosition=$localPosition');
@@ -1399,6 +1454,31 @@ class _CandlestickChartState extends State<CandlestickChart> {
         _selectedTrendLineId = null;
       });
     }
+  }
+
+  bool _handleObjectTapPriority(
+    double chartX,
+    double chartY,
+    double chartWidth,
+    double chartHeight,
+  ) {
+    final _TrendDragHit? dragHit = _hitTestTrendLineDragTarget(
+      chartX,
+      chartY,
+      chartWidth,
+      chartHeight,
+    );
+
+    if (dragHit != null) {
+      setState(() {
+        _selectedTrendLineId = dragHit.id;
+        _pendingTrendLineStartIndex = null;
+        _pendingTrendLineStartPrice = null;
+      });
+      return true;
+    }
+
+    return false;
   }
 
   void _handleTrendLineTap(double chartX, double chartY, double chartWidth, double chartHeight) {
@@ -1485,6 +1565,145 @@ class _CandlestickChartState extends State<CandlestickChart> {
     }
 
     return nearestId;
+  }
+
+  _TrendDragHit? _hitTestTrendLineDragTarget(
+    double x,
+    double y,
+    double chartWidth,
+    double chartHeight,
+  ) {
+    if (_trendLines.isEmpty) return null;
+
+    final double minPrice = _getMinPrice();
+    final double maxPrice = _getMaxPrice();
+    final double priceRange = (maxPrice - minPrice).abs();
+    if (priceRange < 0.0000001) return null;
+
+    final double unit = (_controller.candleWidth * _controller.scale) + _controller.spacing;
+    final double rightEdge = chartWidth - _controller.emptySpaceWidth;
+    const double handleThreshold = 12.0;
+    const double bodyThreshold = 12.0;
+
+    _TrendDragHit? nearestHandle;
+    double nearestHandleDistance = double.infinity;
+
+    for (final line in _trendLines) {
+      final Offset start = Offset(
+        rightEdge - (_controller.endIndex - line.startIndex - 0.5) * unit,
+        ((maxPrice - line.startPrice) / priceRange) * chartHeight,
+      );
+      final Offset end = Offset(
+        rightEdge - (_controller.endIndex - line.endIndex - 0.5) * unit,
+        ((maxPrice - line.endPrice) / priceRange) * chartHeight,
+      );
+
+      final double startDistance = (Offset(x, y) - start).distance;
+      if (startDistance <= handleThreshold && startDistance < nearestHandleDistance) {
+        nearestHandleDistance = startDistance;
+        nearestHandle = _TrendDragHit(id: line.id, target: _TrendDragTarget.start);
+      }
+
+      final double endDistance = (Offset(x, y) - end).distance;
+      if (endDistance <= handleThreshold && endDistance < nearestHandleDistance) {
+        nearestHandleDistance = endDistance;
+        nearestHandle = _TrendDragHit(id: line.id, target: _TrendDragTarget.end);
+      }
+    }
+
+    if (nearestHandle != null) {
+      return nearestHandle;
+    }
+
+    final String? lineId = _findNearestTrendLineId(x, y, chartWidth, chartHeight);
+    if (lineId == null) return null;
+
+    TrendLine? line;
+    for (final item in _trendLines) {
+      if (item.id == lineId) {
+        line = item;
+        break;
+      }
+    }
+    if (line == null) return null;
+
+    final Offset p1 = Offset(
+      rightEdge - (_controller.endIndex - line.startIndex - 0.5) * unit,
+      ((maxPrice - line.startPrice) / priceRange) * chartHeight,
+    );
+    final Offset p2 = Offset(
+      rightEdge - (_controller.endIndex - line.endIndex - 0.5) * unit,
+      ((maxPrice - line.endPrice) / priceRange) * chartHeight,
+    );
+
+    final d = _distancePointToSegment(Offset(x, y), p1, p2);
+    if (d <= bodyThreshold) {
+      return _TrendDragHit(id: lineId, target: _TrendDragTarget.body);
+    }
+
+    return null;
+  }
+
+  void _updateDraggingTrendLine(Offset localPosition, double chartWidth, double chartHeight) {
+    final String? id = _draggingTrendLineId;
+    final _TrendDragTarget? target = _draggingTrendTarget;
+    if (id == null || target == null) return;
+
+    final int index = _trendLines.indexWhere((line) => line.id == id);
+    if (index < 0) return;
+
+    final TrendLine line = _trendLines[index];
+
+    if (target == _TrendDragTarget.start) {
+      final int newStartIndex = _xToDataIndex(localPosition.dx, chartWidth);
+      final double newStartPrice = _yToPrice(localPosition.dy, chartHeight);
+      setState(() {
+        _trendLines[index] = line.copyWith(
+          startIndex: newStartIndex,
+          startPrice: newStartPrice,
+        );
+      });
+      return;
+    }
+
+    if (target == _TrendDragTarget.end) {
+      final int newEndIndex = _xToDataIndex(localPosition.dx, chartWidth);
+      final double newEndPrice = _yToPrice(localPosition.dy, chartHeight);
+      setState(() {
+        _trendLines[index] = line.copyWith(
+          endIndex: newEndIndex,
+          endPrice: newEndPrice,
+        );
+      });
+      return;
+    }
+
+    final Offset? previous = _lastDragPosition;
+    if (previous == null) {
+      _lastDragPosition = localPosition;
+      return;
+    }
+
+    final double dx = localPosition.dx - previous.dx;
+    final double dy = localPosition.dy - previous.dy;
+    final double unit = (_controller.candleWidth * _controller.scale) + _controller.spacing;
+    final int indexDelta = unit <= 0.0000001 ? 0 : (dx / unit).round();
+
+    final double minPrice = _getMinPrice();
+    final double maxPrice = _getMaxPrice();
+    final double priceRange = (maxPrice - minPrice).abs();
+    final double pricePerPixel = chartHeight <= 0.0000001 ? 0 : (priceRange / chartHeight);
+    final double priceDelta = -dy * pricePerPixel;
+
+    setState(() {
+      _trendLines[index] = line.copyWith(
+        startIndex: (line.startIndex + indexDelta).clamp(0, widget.data.length - 1),
+        endIndex: (line.endIndex + indexDelta).clamp(0, widget.data.length - 1),
+        startPrice: line.startPrice + priceDelta,
+        endPrice: line.endPrice + priceDelta,
+      );
+      _lastDragPosition = localPosition;
+    });
   }
 
   double _distancePointToSegment(Offset p, Offset a, Offset b) {
