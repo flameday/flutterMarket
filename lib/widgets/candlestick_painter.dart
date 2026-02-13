@@ -294,8 +294,11 @@ class CandlestickPainter extends CustomPainter {
     // 大量データの場合は描画を制限（性能最適化）
     const int maxDrawCandles = 2000; // 最大描画K線数（大幅削減）
     final int effectiveVisibleCandles = visibleCandles > maxDrawCandles
-        ? maxDrawCandles
-        : visibleCandles;
+      ? maxDrawCandles
+      : visibleCandles;
+    final int startOffset = visibleCandles > maxDrawCandles
+      ? (visibleCandles - maxDrawCandles)
+      : 0;
 
     final double totalWidth = candleWidth + spacing;
     
@@ -310,12 +313,25 @@ class CandlestickPainter extends CustomPainter {
     // 実際に描画するK線数(effectiveVisibleCandles)ではなく、
     // 表示範囲内の全K線数(visibleCandles)を使用する。
     final double startX = rightEdgeX - (visibleCandles * totalWidth);
+
+    // 缩小时采用类似 TradingView 的简化绘制：按像素列聚合OHLC，减少糊感并提升可读性
+    if (candleWidth <= 2.2) {
+      _drawCompressedCandlesticks(
+        canvas,
+        size,
+        startX,
+        candleDrawingWidth,
+        visibleCandles,
+        startOffset,
+      );
+      return;
+    }
     
     // 性能最適化：早期終了条件を追加
     final double minVisibleX = -candleWidth; // 左側の描画境界
     final double maxVisibleX = candleDrawingWidth + candleWidth; // 右側の描画境界
 
-    for (int i = 0; i < effectiveVisibleCandles; i++) {
+    for (int i = startOffset; i < startOffset + effectiveVisibleCandles; i++) {
       final int dataIndex = startIndex + i;
       if (dataIndex >= data.length) break;
       if (dataIndex < 0) continue;
@@ -363,6 +379,77 @@ class CandlestickPainter extends CustomPainter {
           wickPaint..strokeWidth = 2.0,
         );
       }
+    }
+  }
+
+  void _drawCompressedCandlesticks(
+    Canvas canvas,
+    Size size,
+    double startX,
+    double candleDrawingWidth,
+    int visibleCandles,
+    int startOffset,
+  ) {
+    final double totalWidth = candleWidth + spacing;
+    final double minVisibleX = -1.0;
+    final double maxVisibleX = candleDrawingWidth + 1.0;
+
+    final Map<int, _PixelOhlcBucket> buckets = {};
+
+    for (int i = startOffset; i < visibleCandles; i++) {
+      final int dataIndex = startIndex + i;
+      if (dataIndex < 0 || dataIndex >= data.length) continue;
+
+      final double xCenter = startX + i * totalWidth + (candleWidth / 2);
+      if (xCenter < minVisibleX) continue;
+      if (xCenter > maxVisibleX) break;
+
+      final int pixelX = xCenter.floor();
+      final PriceData candle = data[dataIndex];
+
+      final existing = buckets[pixelX];
+      if (existing == null) {
+        buckets[pixelX] = _PixelOhlcBucket(
+          open: candle.open,
+          close: candle.close,
+          high: candle.high,
+          low: candle.low,
+        );
+      } else {
+        existing.close = candle.close;
+        if (candle.high > existing.high) existing.high = candle.high;
+        if (candle.low < existing.low) existing.low = candle.low;
+      }
+    }
+
+    final List<int> sortedPixels = buckets.keys.toList()..sort();
+    for (final pixelX in sortedPixels) {
+      final bucket = buckets[pixelX]!;
+      final bool isBullish = bucket.close >= bucket.open;
+      final Color color = isBullish ? Colors.green : Colors.red;
+
+      final Paint hlPaint = Paint()
+        ..color = color
+        ..strokeWidth = 1.0
+        ..style = PaintingStyle.stroke
+        ..isAntiAlias = false;
+
+      final Paint tickPaint = Paint()
+        ..color = color
+        ..strokeWidth = 1.0
+        ..style = PaintingStyle.stroke
+        ..isAntiAlias = false;
+
+      final double x = pixelX.toDouble() + 0.5;
+      final double highY = _priceToY(bucket.high, size.height);
+      final double lowY = _priceToY(bucket.low, size.height);
+      final double openY = _priceToY(bucket.open, size.height);
+      final double closeY = _priceToY(bucket.close, size.height);
+
+      // 类TradingView缩小时的OHLC柱线：高低竖线 + 开收盘短横
+      canvas.drawLine(Offset(x, highY), Offset(x, lowY), hlPaint);
+      canvas.drawLine(Offset(x - 1.0, openY), Offset(x, openY), tickPaint);
+      canvas.drawLine(Offset(x, closeY), Offset(x + 1.0, closeY), tickPaint);
     }
   }
 
@@ -1782,4 +1869,18 @@ class CandlestickPainter extends CustomPainter {
     
     // LogService.instance.debug('CandlestickPainter', '移动平均线趋势背景绘制完成: $drawnBackgrounds个背景, 跳过$skippedBackgrounds个');
   }
+}
+
+class _PixelOhlcBucket {
+  _PixelOhlcBucket({
+    required this.open,
+    required this.close,
+    required this.high,
+    required this.low,
+  });
+
+  final double open;
+  double close;
+  double high;
+  double low;
 }
