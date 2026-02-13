@@ -898,9 +898,8 @@ class _CandlestickChartState extends State<CandlestickChart> {
 
   void _onScaleUpdate(ScaleUpdateDetails details) {
     if (_draggingTrendLineId != null && _draggingTrendTarget != null) {
-      final RenderBox renderBox = context.findRenderObject() as RenderBox;
-      final Offset localPosition = renderBox.globalToLocal(details.focalPoint);
-      final double chartWidth = renderBox.size.width;
+      final Offset localPosition = details.localFocalPoint;
+      final double chartWidth = _lastWidth > 0 ? _lastWidth : MediaQuery.of(context).size.width;
       final double chartHeight = (widget.height - 80).clamp(1.0, double.infinity);
 
       _updateDraggingTrendLine(localPosition, chartWidth, chartHeight);
@@ -923,9 +922,8 @@ class _CandlestickChartState extends State<CandlestickChart> {
   void _onScaleStart(ScaleStartDetails details) {
     if (_isRightClickDeleting) return; // 右クリック削除中は処理しない
 
-    final RenderBox renderBox = context.findRenderObject() as RenderBox;
-    final Offset localPosition = renderBox.globalToLocal(details.focalPoint);
-    final double chartWidth = renderBox.size.width;
+    final Offset localPosition = details.localFocalPoint;
+    final double chartWidth = _lastWidth > 0 ? _lastWidth : MediaQuery.of(context).size.width;
     final double chartHeight = (widget.height - 80).clamp(1.0, double.infinity);
 
     final dragHit = _hitTestObject(localPosition.dx, localPosition.dy, chartWidth, chartHeight);
@@ -1345,12 +1343,11 @@ class _CandlestickChartState extends State<CandlestickChart> {
   /// チャートクリックイベントを処理
   void _onChartTap(TapUpDetails details) {
     if (_isRightClickDeleting) return; // 右クリック削除中は処理しない
-    final RenderBox renderBox = context.findRenderObject() as RenderBox;
-    final Offset localPosition = renderBox.globalToLocal(details.globalPosition);
+    final Offset localPosition = details.localPosition;
     final double chartX = localPosition.dx;
     final double chartY = localPosition.dy;
-    final double chartWidth = renderBox.size.width;
-    final double chartHeight = renderBox.size.height;
+    final double chartWidth = _lastWidth > 0 ? _lastWidth : MediaQuery.of(context).size.width;
+    final double chartHeight = (widget.height - 80).clamp(1.0, double.infinity);
     
     // ダブルクリック検出
     final now = DateTime.now();
@@ -1405,7 +1402,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
     if (_controller.isVerticalLineMode) {
       // 縦線描画モードで、クリック位置に縦線を追加
       Log.debug('ChartInteraction', 'マウスクリック: globalPosition=${details.globalPosition}, localPosition=$localPosition');
-      Log.debug('ChartInteraction', 'チャートサイズ: width=$chartWidth, height=${renderBox.size.height}');
+      Log.debug('ChartInteraction', 'チャートサイズ: width=$chartWidth, height=$chartHeight');
       Log.debug('ChartInteraction', '計算されたチャートX座標: $chartX');
       
       _addVerticalLineAtPosition(chartX, chartWidth);
