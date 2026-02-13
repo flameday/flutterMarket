@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import '../../models/price_data.dart';
+import '../../services/chart_object_factory.dart';
 import '../../widgets/chart_view_controller.dart';
 import '../candlestick_painter.dart';
 
@@ -90,6 +91,9 @@ class ChartBody extends StatelessWidget {
                           isWavePointsLineVisible: controller.isWavePointsLineVisible,
                           manualHighLowPoints: controller.getVisibleManualHighLowPoints(),
                           isManualHighLowVisible: true,
+                          chartObjects: ChartObjectFactory.build(
+                            controller: controller,
+                          ),
                         ),
                         size: Size.infinite,
                       ),
@@ -144,4 +148,5 @@ class ChartBody extends StatelessWidget {
     
     return maData;
   }
+
 }

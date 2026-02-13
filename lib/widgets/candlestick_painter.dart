@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import '../models/chart_object.dart';
 import '../models/price_data.dart';
 import '../models/vertical_line.dart';
 import '../models/kline_selection.dart';
 import '../models/manual_high_low_point.dart';
-import '../services/trend_filtering_service.dart';
+import '../models/trend_line.dart';
+import '../services/trend_filtering_service.dart' hide TrendLine;
 import '../services/cubic_curve_fitting_service.dart';
 import '../services/ma60_filtering_service.dart';
 import '../services/bollinger_bands_filtering_service.dart';
@@ -12,6 +14,7 @@ import '../utils/kline_timestamp_utils.dart';
 import '../services/log_service.dart';
 import '../models/trading_pair.dart';
 import 'painters/bollinger_bands_painter.dart';
+import 'painters/chart_object_renderer.dart';
 
 /// キャンドルスティックチャートを描画するカスタムPainter
 class CandlestickPainter extends CustomPainter {
@@ -54,11 +57,16 @@ class CandlestickPainter extends CustomPainter {
   final bool isWavePointsLineVisible; // ウェーブポイント接続線が表示されるか
   final List<ManualHighLowPoint>? manualHighLowPoints; // 手動高低点データ
   final bool isManualHighLowVisible; // 手動高低点が表示されるか
+  final List<TrendLine>? trendLines; // 斜线数据
+  final String? selectedTrendLineId; // 当前选中的斜线ID
   final Color? backgroundColor; // 背景色
   final bool isKlineVisible; // K線表示/非表示
   final bool isMaTrendBackgroundEnabled; // 移动平均线趋势背景是否启用
   final List<Color?>? maTrendBackgroundColors; // 移动平均线趋势背景颜色
   final TradingPair? selectedTradingPair;
+  final List<ChartObject> chartObjects;
+  final ChartObjectRendererRegistry _objectRendererRegistry =
+      ChartObjectRendererRegistry();
 
   CandlestickPainter({
     required this.data,
@@ -88,6 +96,8 @@ class CandlestickPainter extends CustomPainter {
     this.isWavePointsLineVisible = false,
     this.manualHighLowPoints,
     this.isManualHighLowVisible = true,
+    this.trendLines,
+    this.selectedTrendLineId,
     this.backgroundColor,
     this.isKlineVisible = true,
     this.filteredWavePoints,
@@ -105,6 +115,7 @@ class CandlestickPainter extends CustomPainter {
     this.isMaTrendBackgroundEnabled = false,
     this.maTrendBackgroundColors,
     this.selectedTradingPair,
+    this.chartObjects = const [],
   });
 
   @override
@@ -151,6 +162,8 @@ class CandlestickPainter extends CustomPainter {
     // グリッド線を描画
     _drawGrid(canvas, size, gridPaint);
 
+    _drawChartObjectsByLayer(canvas, size, ChartObjectLayer.belowIndicators);
+
     // キャンドルスティックを描画（K線表示が有効な場合のみ）
     if (isKlineVisible) {
     _drawCandlesticks(canvas, size, bullishPaint, bearishPaint, wickPaint);
@@ -159,8 +172,12 @@ class CandlestickPainter extends CustomPainter {
     // 移動平均線を描画
     _drawMovingAverages(canvas, size);
 
-    // 縦線を描画
-    _drawVerticalLines(canvas, size);
+    if (chartObjects.isNotEmpty) {
+      _drawChartObjectsByLayer(canvas, size, ChartObjectLayer.aboveIndicators);
+    } else {
+      _drawVerticalLines(canvas, size);
+      _drawUserTrendLines(canvas, size);
+    }
 
     // 価格ラベルを描画
     _drawPriceLabels(canvas, size);
@@ -171,31 +188,39 @@ class CandlestickPainter extends CustomPainter {
     // 十字カーソルとラベルを描画
     _drawCrosshairAndLabels(canvas, size);
 
-    // ウェーブポイントを描画
-    if (isWavePointsVisible && mergedWavePoints != null) {
+    // ウェーブポイントを描画（旧描画経路。对象管线未覆盖时作为回退）
+    if (!_hasObjectType<WavePointObject>() && isWavePointsVisible && mergedWavePoints != null) {
       _drawWavePoints(canvas, size);
     }
 
-    // ウェーブポイント接続線を描画
-    if (isWavePointsLineVisible && isWavePointsVisible && mergedWavePoints != null) {
+    // ウェーブポイント接続線を描画（旧描画経路回退）
+    if (!_hasObjectType<WavePolylineObject>() && isWavePointsLineVisible && isWavePointsVisible && mergedWavePoints != null) {
       _drawWavePointsLine(canvas, size);
     }
 
-    // 手動高低点を描画
-    if (isManualHighLowVisible && manualHighLowPoints != null) {
+    // 手動高低点を描画（旧描画経路回退）
+    if (!_hasObjectType<ManualHighLowObject>() && isManualHighLowVisible && manualHighLowPoints != null) {
       _drawManualHighLowPoints(canvas, size);
     }
 
 
     // トレンドフィルタリングされた高低点を描画
     if (isTrendFilteringEnabled) {
-      // // LogService.instance.debug('CandlestickPainter', 'トレンドフィルタリング描画開始');
-      // // LogService.instance.debug('CandlestickPainter', 'filteredWavePoints: ${filteredWavePoints != null ? "存在" : "null"}');
-      _drawFilteredWavePoints(canvas);
-      _drawTrendLines(canvas);
-      _drawSmoothTrendLine(canvas); // 滑らかな折線を描画
-      _drawFittedCurve(canvas); // 拟合曲线を描画
-      // // LogService.instance.debug('CandlestickPainter', 'トレンドフィルタリング描画完了');
+      final hasTrendAnalysisObjects =
+          _hasObjectType<FilteredWavePointObject>() ||
+          _hasObjectType<TrendAnalysisLineObject>() ||
+          _hasObjectType<SmoothTrendPolylineObject>() ||
+          _hasObjectType<FittedCurveObject>();
+
+      if (!hasTrendAnalysisObjects) {
+        // // LogService.instance.debug('CandlestickPainter', 'トレンドフィルタリング描画開始');
+        // // LogService.instance.debug('CandlestickPainter', 'filteredWavePoints: ${filteredWavePoints != null ? "存在" : "null"}');
+        _drawFilteredWavePoints(canvas);
+        _drawTrendLines(canvas);
+        _drawSmoothTrendLine(canvas); // 滑らかな折線を描画
+        _drawFittedCurve(canvas); // 拟合曲线を描画
+        // // LogService.instance.debug('CandlestickPainter', 'トレンドフィルタリング描画完了');
+      }
     } else {
       // // LogService.instance.debug('CandlestickPainter', 'トレンドフィルタリング無効、描画スキップ');
     }
@@ -244,11 +269,12 @@ class CandlestickPainter extends CustomPainter {
       );
     }
 
-    // 保存されたK線選択区域を描画
-    _drawSavedKlineSelections(canvas, size);
-    
-    // 現在の選択区域を描画
-    _drawSelectionArea(canvas, size);
+    if (chartObjects.isNotEmpty) {
+      _drawChartObjectsByLayer(canvas, size, ChartObjectLayer.interaction);
+    } else {
+      _drawSavedKlineSelections(canvas, size);
+      _drawSelectionArea(canvas, size);
+    }
 
     // 性能監視：描画完了時間
     stopwatch.stop();
@@ -256,6 +282,37 @@ class CandlestickPainter extends CustomPainter {
     if (stopwatch.elapsedMilliseconds > 16) {
       Log.warning('CandlestickPainter', '描画性能警告: ${stopwatch.elapsedMilliseconds}ms (データ量: ${data.length}, 表示K線: ${endIndex - startIndex})');
     }
+  }
+
+  void _drawChartObjectsByLayer(
+    Canvas canvas,
+    Size size,
+    ChartObjectLayer layer,
+  ) {
+    if (chartObjects.isEmpty) return;
+    _objectRendererRegistry.renderObjects(
+      canvas: canvas,
+      size: size,
+      data: data,
+      startIndex: startIndex,
+      endIndex: endIndex,
+      candleWidth: candleWidth,
+      spacing: spacing,
+      minPrice: minPrice,
+      maxPrice: maxPrice,
+      emptySpaceWidth: emptySpaceWidth,
+      objects: chartObjects,
+      layer: layer,
+    );
+  }
+
+  bool _hasObjectType<T extends ChartObject>() {
+    for (final object in chartObjects) {
+      if (object is T) {
+        return true;
+      }
+    }
+    return false;
   }
 
   void _drawGrid(Canvas canvas, Size size, Paint gridPaint) {
@@ -579,6 +636,44 @@ class CandlestickPainter extends CustomPainter {
     }
   }
 
+  void _drawUserTrendLines(Canvas canvas, Size size) {
+    if (trendLines == null || trendLines!.isEmpty) return;
+
+    for (final line in trendLines!) {
+      final double startX = _getCandleXPosition(line.startIndex);
+      final double endX = _getCandleXPosition(line.endIndex);
+      final double startY = _priceToY(line.startPrice, size.height);
+      final double endY = _priceToY(line.endPrice, size.height);
+
+      if ((startX < -100 && endX < -100) || (startX > size.width + 100 && endX > size.width + 100)) {
+        continue;
+      }
+
+      Color lineColor;
+      try {
+        lineColor = Color(int.parse(line.color.replaceFirst('#', '0xFF')));
+      } catch (_) {
+        lineColor = Colors.amber;
+      }
+
+      final bool isSelected = selectedTrendLineId == line.id;
+      final Paint linePaint = Paint()
+        ..color = isSelected ? Colors.lightBlueAccent : lineColor
+        ..strokeWidth = isSelected ? (line.width + 1.2) : line.width
+        ..style = PaintingStyle.stroke;
+
+      canvas.drawLine(Offset(startX, startY), Offset(endX, endY), linePaint);
+
+      if (isSelected) {
+        final Paint handlePaint = Paint()
+          ..color = Colors.lightBlueAccent
+          ..style = PaintingStyle.fill;
+        canvas.drawCircle(Offset(startX, startY), 4.0, handlePaint);
+        canvas.drawCircle(Offset(endX, endY), 4.0, handlePaint);
+      }
+    }
+  }
+
   void _drawPriceLabels(Canvas canvas, Size size) {
     final pair = selectedTradingPair ?? TradingPair.eurusd;
     final TextPainter textPainter = TextPainter(
@@ -801,6 +896,9 @@ class CandlestickPainter extends CustomPainter {
         oldDelegate.mergedWavePoints != mergedWavePoints ||
         oldDelegate.isWavePointsVisible != isWavePointsVisible ||
         oldDelegate.isWavePointsLineVisible != isWavePointsLineVisible ||
+          oldDelegate.trendLines != trendLines ||
+          oldDelegate.selectedTrendLineId != selectedTrendLineId ||
+        oldDelegate.chartObjects != chartObjects ||
         oldDelegate.isKlineVisible != isKlineVisible;
   }
 

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import '../models/price_data.dart';
 import '../constants/chart_constants.dart';
 import '../services/log_service.dart';
+import '../services/chart_object_factory.dart';
 import 'widgets/chart_view_controller.dart';
 import 'widgets/candlestick_painter.dart';
 
@@ -251,6 +252,9 @@ class _CandlestickChartState extends State<CandlestickChart> {
                           isWavePointsLineVisible: _controller.isWavePointsLineVisible,
                           manualHighLowPoints: _controller.getVisibleManualHighLowPoints(),
                           isManualHighLowVisible: true,
+                            chartObjects: ChartObjectFactory.build(
+                              controller: _controller,
+                            ),
                           backgroundColor: widget.backgroundColor, // 背景色を渡す
                     ),
                     size: Size.infinite,

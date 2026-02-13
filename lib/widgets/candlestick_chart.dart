@@ -1,12 +1,15 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import '../models/price_data.dart';
 import '../models/timeframe.dart';
 import '../models/trading_pair.dart';
+import '../models/trend_line.dart';
 import '../constants/chart_constants.dart';
 import '../services/log_service.dart';
+import '../services/chart_object_factory.dart';
 import 'candlestick_painter.dart';
 import 'chart_view_controller.dart';
 import 'components/bollinger_bands_settings_dialog.dart';
@@ -128,6 +131,11 @@ class _CandlestickChartState extends State<CandlestickChart> {
   double? _hoveredPrice;
   bool _isRightClickDeleting = false; // 右クリック削除処理中フラグ
   bool _isDownloading = false; // データダウンロード中の状態フラグ
+  bool _isTrendLineMode = false;
+  int? _pendingTrendLineStartIndex;
+  double? _pendingTrendLineStartPrice;
+  final List<TrendLine> _trendLines = [];
+  String? _selectedTrendLineId;
   
   // ダブルクリック検出用
   DateTime? _lastTapTime;
@@ -466,6 +474,8 @@ class _CandlestickChartState extends State<CandlestickChart> {
                           isWavePointsLineVisible: _controller.isWavePointsLineVisible,
                           manualHighLowPoints: _controller.getVisibleManualHighLowPoints(),
                           isManualHighLowVisible: true,
+                          trendLines: _trendLines,
+                          selectedTrendLineId: _selectedTrendLineId,
                           backgroundColor: widget.backgroundColor, // 背景色を渡す
                           isKlineVisible: widget.isKlineVisible ?? true, // K線表示/非表示
                           filteredWavePoints: _controller.filteredWavePoints,
@@ -483,6 +493,14 @@ class _CandlestickChartState extends State<CandlestickChart> {
                           bbAlphas: _controller.bbAlphas,
                           isMaTrendBackgroundEnabled: widget.isMaTrendBackgroundEnabled ?? false,
                           maTrendBackgroundColors: _controller.maTrendBackgroundColors,
+                          chartObjects: ChartObjectFactory.build(
+                            controller: _controller,
+                            trendLines: _trendLines,
+                            selectedTrendLineId: _selectedTrendLineId,
+                            includeTrendFiltering:
+                                widget.isTrendFilteringEnabled ?? false,
+                            includeFibonacciForSelectedTrendLine: true,
+                          ),
                     ),
                     size: Size.infinite,
                   ),
@@ -689,6 +707,56 @@ class _CandlestickChartState extends State<CandlestickChart> {
               padding: const EdgeInsets.all(4),
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             ),
+
+            IconButton(
+              onPressed: _toggleTrendLineMode,
+              icon: Icon(
+                _isTrendLineMode ? Icons.remove : Icons.show_chart,
+                color: _isTrendLineMode ? Colors.red : Colors.white,
+                size: 20,
+              ),
+              tooltip: _isTrendLineMode ? '斜線描画モードを終了' : '斜線描画モードに入る',
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            ),
+
+            if (_selectedTrendLineId != null) ...[
+              IconButton(
+                onPressed: () => _adjustSelectedTrendLineLength(0.9),
+                icon: const Icon(Icons.compress, color: Colors.white, size: 20),
+                tooltip: '斜線長さを短く',
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+              IconButton(
+                onPressed: () => _adjustSelectedTrendLineLength(1.1),
+                icon: const Icon(Icons.expand, color: Colors.white, size: 20),
+                tooltip: '斜線長さを長く',
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+              IconButton(
+                onPressed: () => _adjustSelectedTrendLineAngle(-5),
+                icon: const Icon(Icons.rotate_left, color: Colors.white, size: 20),
+                tooltip: '斜線角度を左回転',
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+              IconButton(
+                onPressed: () => _adjustSelectedTrendLineAngle(5),
+                icon: const Icon(Icons.rotate_right, color: Colors.white, size: 20),
+                tooltip: '斜線角度を右回転',
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+              IconButton(
+                onPressed: _deleteSelectedTrendLine,
+                icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                tooltip: '選択した斜線を削除',
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
+            ],
             
             // すべての縦線をクリアボタン
             IconButton(
@@ -1191,7 +1259,24 @@ class _CandlestickChartState extends State<CandlestickChart> {
   /// 縦線描画モードを切り替え
   void _toggleVerticalLineMode() {
     setState(() {
+      _isTrendLineMode = false;
+      _pendingTrendLineStartIndex = null;
+      _pendingTrendLineStartPrice = null;
       _controller.toggleVerticalLineMode();
+    });
+  }
+
+  void _toggleTrendLineMode() {
+    setState(() {
+      _isTrendLineMode = !_isTrendLineMode;
+      _pendingTrendLineStartIndex = null;
+      _pendingTrendLineStartPrice = null;
+      if (_isTrendLineMode && _controller.isVerticalLineMode) {
+        _controller.toggleVerticalLineMode();
+      }
+      if (!_isTrendLineMode) {
+        _selectedTrendLineId = null;
+      }
     });
   }
 
@@ -1266,6 +1351,11 @@ class _CandlestickChartState extends State<CandlestickChart> {
     // シングルクリックの記録
     _lastTapTime = now;
     _lastTapPosition = localPosition;
+
+    final double drawableChartHeight = (widget.height - 80).clamp(1.0, double.infinity);
+    if (chartY < 0 || chartY > drawableChartHeight) {
+      return;
+    }
     
     // 右クリックかどうかチェック（K線統計モードで）
     if (_controller.isKlineCountMode && details.kind == PointerDeviceKind.mouse) {
@@ -1281,6 +1371,19 @@ class _CandlestickChartState extends State<CandlestickChart> {
       }
     }
     
+    if (_isTrendLineMode) {
+      _handleTrendLineTap(chartX, chartY, chartWidth, drawableChartHeight);
+      return;
+    }
+
+    final nearestTrendLineId = _findNearestTrendLineId(chartX, chartY, chartWidth, drawableChartHeight);
+    if (nearestTrendLineId != null) {
+      setState(() {
+        _selectedTrendLineId = nearestTrendLineId;
+      });
+      return;
+    }
+
     if (_controller.isVerticalLineMode) {
       // 縦線描画モードで、クリック位置に縦線を追加
       Log.debug('ChartInteraction', 'マウスクリック: globalPosition=${details.globalPosition}, localPosition=$localPosition');
@@ -1288,7 +1391,164 @@ class _CandlestickChartState extends State<CandlestickChart> {
       Log.debug('ChartInteraction', '計算されたチャートX座標: $chartX');
       
       _addVerticalLineAtPosition(chartX, chartWidth);
+      return;
     }
+
+    if (_selectedTrendLineId != null) {
+      setState(() {
+        _selectedTrendLineId = null;
+      });
+    }
+  }
+
+  void _handleTrendLineTap(double chartX, double chartY, double chartWidth, double chartHeight) {
+    final int index = _xToDataIndex(chartX, chartWidth);
+    final double price = _yToPrice(chartY, chartHeight);
+
+    if (_pendingTrendLineStartIndex == null || _pendingTrendLineStartPrice == null) {
+      setState(() {
+        _pendingTrendLineStartIndex = index;
+        _pendingTrendLineStartPrice = price;
+        _selectedTrendLineId = null;
+      });
+      return;
+    }
+
+    final int startIndex = _pendingTrendLineStartIndex!;
+    final double startPrice = _pendingTrendLineStartPrice!;
+    if (startIndex == index && (startPrice - price).abs() < 0.0000001) {
+      return;
+    }
+
+    final trendLine = TrendLine(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      startIndex: startIndex,
+      startPrice: startPrice,
+      endIndex: index,
+      endPrice: price,
+    );
+
+    setState(() {
+      _trendLines.add(trendLine);
+      _selectedTrendLineId = trendLine.id;
+      _pendingTrendLineStartIndex = null;
+      _pendingTrendLineStartPrice = null;
+    });
+  }
+
+  int _xToDataIndex(double x, double chartWidth) {
+    final double unit = (_controller.candleWidth * _controller.scale) + _controller.spacing;
+    if (unit <= 0 || widget.data.isEmpty) return 0;
+    final double rightEdge = chartWidth - _controller.emptySpaceWidth;
+    final double rawIndex = _controller.endIndex - 0.5 - (rightEdge - x) / unit;
+    return rawIndex.round().clamp(0, widget.data.length - 1);
+  }
+
+  double _yToPrice(double y, double chartHeight) {
+    final double minPrice = _getMinPrice();
+    final double maxPrice = _getMaxPrice();
+    final double priceRange = (maxPrice - minPrice).abs();
+    if (priceRange < 0.0000001) return maxPrice;
+    final double normalized = (y / chartHeight).clamp(0.0, 1.0);
+    return maxPrice - normalized * (maxPrice - minPrice);
+  }
+
+  String? _findNearestTrendLineId(double x, double y, double chartWidth, double chartHeight) {
+    if (_trendLines.isEmpty) return null;
+
+    final double minPrice = _getMinPrice();
+    final double maxPrice = _getMaxPrice();
+    final double priceRange = (maxPrice - minPrice).abs();
+    if (priceRange < 0.0000001) return null;
+
+    final double unit = (_controller.candleWidth * _controller.scale) + _controller.spacing;
+    final double rightEdge = chartWidth - _controller.emptySpaceWidth;
+
+    String? nearestId;
+    double nearestDistance = 14.0;
+
+    for (final line in _trendLines) {
+      final Offset p1 = Offset(
+        rightEdge - (_controller.endIndex - line.startIndex - 0.5) * unit,
+        ((maxPrice - line.startPrice) / priceRange) * chartHeight,
+      );
+      final Offset p2 = Offset(
+        rightEdge - (_controller.endIndex - line.endIndex - 0.5) * unit,
+        ((maxPrice - line.endPrice) / priceRange) * chartHeight,
+      );
+
+      final double d = _distancePointToSegment(Offset(x, y), p1, p2);
+      if (d < nearestDistance) {
+        nearestDistance = d;
+        nearestId = line.id;
+      }
+    }
+
+    return nearestId;
+  }
+
+  double _distancePointToSegment(Offset p, Offset a, Offset b) {
+    final Offset ab = b - a;
+    final double lengthSquared = ab.dx * ab.dx + ab.dy * ab.dy;
+    if (lengthSquared < 0.000001) return (p - a).distance;
+    final double t = (((p.dx - a.dx) * ab.dx + (p.dy - a.dy) * ab.dy) / lengthSquared).clamp(0.0, 1.0);
+    final Offset projection = Offset(a.dx + ab.dx * t, a.dy + ab.dy * t);
+    return (p - projection).distance;
+  }
+
+  void _adjustSelectedTrendLineLength(double factor) {
+    final String? id = _selectedTrendLineId;
+    if (id == null) return;
+    final int index = _trendLines.indexWhere((line) => line.id == id);
+    if (index < 0) return;
+
+    final TrendLine line = _trendLines[index];
+    final double dx = (line.endIndex - line.startIndex).toDouble();
+    final double dy = line.endPrice - line.startPrice;
+    final double newEndIndex = line.startIndex + dx * factor;
+    final double newEndPrice = line.startPrice + dy * factor;
+
+    setState(() {
+      _trendLines[index] = line.copyWith(
+        endIndex: newEndIndex.round().clamp(0, widget.data.length - 1),
+        endPrice: newEndPrice,
+      );
+    });
+  }
+
+  void _adjustSelectedTrendLineAngle(double deltaDegrees) {
+    final String? id = _selectedTrendLineId;
+    if (id == null) return;
+    final int index = _trendLines.indexWhere((line) => line.id == id);
+    if (index < 0) return;
+
+    final TrendLine line = _trendLines[index];
+    final double dx = (line.endIndex - line.startIndex).toDouble();
+    final double dy = line.endPrice - line.startPrice;
+    final double length = math.sqrt(dx * dx + dy * dy);
+    if (length < 0.0000001) return;
+
+    final double angle = math.atan2(dy, dx) + (deltaDegrees * math.pi / 180.0);
+    final double newDx = math.cos(angle) * length;
+    final double newDy = math.sin(angle) * length;
+
+    setState(() {
+      _trendLines[index] = line.copyWith(
+        endIndex: (line.startIndex + newDx).round().clamp(0, widget.data.length - 1),
+        endPrice: line.startPrice + newDy,
+      );
+    });
+  }
+
+  void _deleteSelectedTrendLine() {
+    final String? id = _selectedTrendLineId;
+    if (id == null) return;
+    setState(() {
+      _trendLines.removeWhere((line) => line.id == id);
+      _selectedTrendLineId = null;
+      _pendingTrendLineStartIndex = null;
+      _pendingTrendLineStartPrice = null;
+    });
   }
 
   /// 指定位置に縦線を追加
