@@ -21,6 +21,7 @@ class CandlestickChart extends StatefulWidget {
   final Map<int, double>? maAlphas; // MA透明度設定
   final bool? isWavePointsVisible;
   final bool? isWavePointsLineVisible;
+  final bool? isOhlcVisible; // 右上O/H/L/C表示
   final bool? isKlineVisible; // K線表示/非表示
   final Color? backgroundColor; // 背景色
   final bool? isTrendFilteringEnabled; // トレンドフィルタリング有効/無効
@@ -55,6 +56,7 @@ class CandlestickChart extends StatefulWidget {
     this.maAlphas,
     this.isWavePointsVisible,
     this.isWavePointsLineVisible,
+    this.isOhlcVisible,
     this.isKlineVisible,
     this.backgroundColor,
     this.isTrendFilteringEnabled,
@@ -505,8 +507,9 @@ class _CandlestickChartState extends State<CandlestickChart> {
   }
 
   Widget _buildChartHeader(double minPrice, double maxPrice) {
+    final bool shouldShowOhlc = widget.isOhlcVisible ?? true;
     Widget headerContent;
-    if (_hoveredCandle != null && _hoveredPrice != null) {
+    if (shouldShowOhlc && _hoveredCandle != null && _hoveredPrice != null) {
       final pair = widget.selectedTradingPair ?? TradingPair.eurusd;
       final candle = _hoveredCandle!;
       final o = pair.formatPrice(candle.open);

@@ -9,6 +9,7 @@ class AppSettings {
   final int autoUpdateIntervalMinutes;
   final bool isWavePointsVisible;
   final bool isWavePointsLineVisible;
+  final bool isOhlcVisible; // 右上O/H/L/C表示
   final bool isFormattedWaveVisible;
   final bool isKlineVisible; // K線表示/非表示
   final String selectedInterpolationMethod;
@@ -48,6 +49,7 @@ class AppSettings {
     this.autoUpdateIntervalMinutes = 1,
     this.isWavePointsVisible = true,
     this.isWavePointsLineVisible = false,
+    this.isOhlcVisible = true,
     this.isFormattedWaveVisible = false,
     this.isKlineVisible = true, // デフォルトでK線を表示
     this.selectedInterpolationMethod = 'chaikin',
@@ -111,6 +113,7 @@ class AppSettings {
       autoUpdateIntervalMinutes: json['autoUpdateIntervalMinutes'] ?? defaults.autoUpdateIntervalMinutes,
       isWavePointsVisible: json['isWavePointsVisible'] ?? defaults.isWavePointsVisible,
       isWavePointsLineVisible: json['isWavePointsLineVisible'] ?? defaults.isWavePointsLineVisible,
+      isOhlcVisible: json['isOhlcVisible'] ?? defaults.isOhlcVisible,
       isFormattedWaveVisible: json['isFormattedWaveVisible'] ?? defaults.isFormattedWaveVisible,
       isKlineVisible: json['isKlineVisible'] ?? defaults.isKlineVisible,
       selectedInterpolationMethod: json['selectedInterpolationMethod'] ?? defaults.selectedInterpolationMethod,
@@ -154,6 +157,7 @@ class AppSettings {
       'autoUpdateIntervalMinutes': autoUpdateIntervalMinutes,
       'isWavePointsVisible': isWavePointsVisible,
       'isWavePointsLineVisible': isWavePointsLineVisible,
+      'isOhlcVisible': isOhlcVisible,
       'isFormattedWaveVisible': isFormattedWaveVisible,
       'isKlineVisible': isKlineVisible,
       'selectedInterpolationMethod': selectedInterpolationMethod,
@@ -196,6 +200,7 @@ class AppSettings {
     int? autoUpdateIntervalMinutes,
     bool? isWavePointsVisible,
     bool? isWavePointsLineVisible,
+    bool? isOhlcVisible,
     bool? isFormattedWaveVisible,
     bool? isKlineVisible,
     String? selectedInterpolationMethod,
@@ -234,6 +239,7 @@ class AppSettings {
       autoUpdateIntervalMinutes: autoUpdateIntervalMinutes ?? this.autoUpdateIntervalMinutes,
       isWavePointsVisible: isWavePointsVisible ?? this.isWavePointsVisible,
       isWavePointsLineVisible: isWavePointsLineVisible ?? this.isWavePointsLineVisible,
+      isOhlcVisible: isOhlcVisible ?? this.isOhlcVisible,
       isFormattedWaveVisible: isFormattedWaveVisible ?? this.isFormattedWaveVisible,
       isKlineVisible: isKlineVisible ?? this.isKlineVisible,
       selectedInterpolationMethod: selectedInterpolationMethod ?? this.selectedInterpolationMethod,

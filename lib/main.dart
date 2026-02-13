@@ -1071,6 +1071,24 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                         const SelectableText('ウェーブポイント接続線を表示'),
                       ],
                     ),
+                    const SizedBox(height: 8),
+
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _appSettings?.isOhlcVisible ?? true,
+                          onChanged: (bool? value) {
+                            if (_appSettings != null) {
+                              dialogSetState(() {
+                                _appSettings = _appSettings!.copyWith(isOhlcVisible: value ?? true);
+                              });
+                              setState(() {});
+                            }
+                          },
+                        ),
+                        const SelectableText('右上の O/H/L/C を表示'),
+                      ],
+                    ),
                     const SizedBox(height: 16),
 
                     // 移動平均線設定
@@ -1873,6 +1891,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
       maAlphas: _appSettings?.maAlphas,
       isWavePointsVisible: _appSettings?.isWavePointsVisible,
       isWavePointsLineVisible: _appSettings?.isWavePointsLineVisible,
+      isOhlcVisible: _appSettings?.isOhlcVisible,
       isKlineVisible: _appSettings?.isKlineVisible,
       isTrendFilteringEnabled: _appSettings?.isTrendFilteringEnabled,
       trendFilteringThreshold: _appSettings?.trendFilteringThreshold,
