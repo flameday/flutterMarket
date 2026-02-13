@@ -103,6 +103,10 @@ class ChartViewController extends _ChartControllerBase
   
   @override
   double scale = 1.0;
+
+  double? _recordedScale;
+  int? _recordedStartIndex;
+  int? _recordedEndIndex;
   
   bool _isLoadingData = false;
   
@@ -139,6 +143,13 @@ class ChartViewController extends _ChartControllerBase
   void setTimeframe(String timeframe) {
     _currentTimeframe = timeframe;
     Log.info('ChartViewController', '时间周期设置为: $timeframe');
+  }
+
+  /// 记录当前渲染视图状态（缩放比例与绘制起点）
+  void recordCurrentViewState() {
+    _recordedScale = scale;
+    _recordedStartIndex = startIndex;
+    _recordedEndIndex = endIndex;
   }
 
   ChartViewController({
@@ -199,29 +210,81 @@ class ChartViewController extends _ChartControllerBase
     }
   }
 
-  /// データを更新する
-  void updateData(List<PriceData> newData) {
+  /// データを更新する（デフォルトで現在の表示位置と縮尺を維持）
+  void updateData(List<PriceData> newData, {bool preserveView = true}) {
+    final double baseScale = _recordedScale ?? scale;
+    final int baseStartIndex = _recordedStartIndex ?? startIndex;
+    final int baseEndIndex = _recordedEndIndex ?? endIndex;
+
+    final int oldLength = data.length;
+    final int oldStartIndex = baseStartIndex;
+    final int oldEndIndex = baseEndIndex;
+    final int oldVisibleCandles = (oldEndIndex - oldStartIndex).clamp(1, 1000000);
+    final bool wasFollowingLatest = oldEndIndex >= oldLength;
+
     data = newData;
-    
-    if (data.isNotEmpty) {
-      // 移動平均線を再計算
-      onDataUpdatedForMA(data);
-      // 波浪点を再計算
-      onDataUpdatedForWavePoints();
-      // 布林通道を再計算
-      onDataUpdatedForBB(data);
+
+    if (data.isEmpty) {
+      startIndex = 0;
+      endIndex = 0;
+      return;
+    }
+
+    // 移動平均線を再計算
+    onDataUpdatedForMA(data);
+    // 波浪点を再計算
+    onDataUpdatedForWavePoints();
+    // 布林通道を再計算
+    onDataUpdatedForBB(data);
+
+    if (!preserveView) {
       // 大量データの場合は表示範囲を制限
       const int maxDataLimit = ChartConstants.maxDataLimit;
       if (data.length > maxDataLimit) {
-        // 最後の1万件を表示するように設定
         endIndex = data.length;
         startIndex = data.length - maxDataLimit;
       } else {
-        // データ数が制限以下の場合は全データを表示
         endIndex = data.length;
         startIndex = 0;
       }
+      return;
     }
+
+    // 保持缩放比例
+    scale = baseScale;
+
+    // 静默更新：保持当前窗口；若原本跟随最新K线，则继续跟随最新
+    int newStartIndex = oldStartIndex;
+    int newEndIndex = oldEndIndex;
+    final int lengthDelta = data.length - oldLength;
+
+    if (wasFollowingLatest && lengthDelta != 0) {
+      newStartIndex += lengthDelta;
+      newEndIndex += lengthDelta;
+    }
+
+    if (newEndIndex <= 0) {
+      newEndIndex = data.length;
+    }
+
+    if (newStartIndex < 0) {
+      newStartIndex = 0;
+    }
+
+    if (newStartIndex >= data.length) {
+      newEndIndex = data.length;
+      newStartIndex = (newEndIndex - oldVisibleCandles).clamp(0, data.length - 1);
+    }
+
+    if (newEndIndex <= newStartIndex) {
+      newEndIndex = (newStartIndex + 1).clamp(1, data.length);
+    }
+
+    startIndex = newStartIndex;
+    endIndex = newEndIndex;
+
+    // 更新一次记录，供下一次重绘/刷新使用
+    recordCurrentViewState();
   }
 
   @override

@@ -100,13 +100,6 @@ class _CandlestickChartState extends State<CandlestickChart> {
     // データが更新された場合、コントローラーのデータも更新
     if (widget.data != oldWidget.data) {
       _controller.updateData(widget.data);
-      
-      // データ更新後に表示範囲をリセット
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          _resetView(preserveScale: true);
-        }
-      });
     }
     
     // 移動平均線設定更新
@@ -138,6 +131,8 @@ class _CandlestickChartState extends State<CandlestickChart> {
 
   @override
   Widget build(BuildContext context) {
+    _controller.recordCurrentViewState();
+
     if (widget.data.isEmpty) {
       return Container(
         height: widget.height,
