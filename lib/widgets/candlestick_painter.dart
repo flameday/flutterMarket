@@ -1,22 +1,20 @@
 import 'package:flutter/material.dart';
 import '../models/chart_object.dart';
 import '../models/price_data.dart';
-import '../models/vertical_line.dart';
-import '../models/kline_selection.dart';
-import '../models/manual_high_low_point.dart';
-import '../models/trend_line.dart';
-import '../services/trend_filtering_service.dart' hide TrendLine;
 import '../services/cubic_curve_fitting_service.dart';
 import '../services/ma60_filtering_service.dart';
 import '../services/bollinger_bands_filtering_service.dart';
 import '../constants/chart_constants.dart';
-import '../utils/kline_timestamp_utils.dart';
 import '../services/log_service.dart';
 import '../models/trading_pair.dart';
 import 'painters/bollinger_bands_painter.dart';
 import 'painters/chart_object_renderer.dart';
 
 /// キャンドルスティックチャートを描画するカスタムPainter
+///
+/// 渲染逻辑只分两类：
+/// 1) K线背景板（坐标系、K线、指标、标签）
+/// 2) Object贴层（线段/形状/选区等叠加对象）
 class CandlestickPainter extends CustomPainter {
   final List<PriceData> data;
   final double candleWidth;
@@ -35,12 +33,6 @@ class CandlestickPainter extends CustomPainter {
   final Map<int, bool>? maVisibility; // 移動平均線の表示状態
   final Map<int, String>? maColorSettings; // MA色設定
   final Map<int, double>? maAlphas; // MA透明度設定
-  final List<VerticalLine>? verticalLines; // 縦線データ
-  final double? selectionStartX; // 選択区域開始X座標
-  final double? selectionEndX; // 選択区域終了X座標
-  final int selectedKlineCount; // 選択されたK線数
-  final FilteredWavePoints? filteredWavePoints; // フィルタリングされた高低点データ
-  final bool isTrendFilteringEnabled; // トレンドフィルタリングが有効かどうか
   final CubicCurveResult? cubicCurveResult; // 3次曲线数据
   final bool isCubicCurveVisible; // 3次曲线是否可见
   final MA60FilteredCurveResult? ma60FilteredCurveResult; // 60均线过滤曲线数据
@@ -51,19 +43,12 @@ class CandlestickPainter extends CustomPainter {
   final bool isBollingerBandsVisible; // 布林通道が表示されるか
   final Map<String, Color>? bbColors; // 布林通道色設定
   final Map<String, double>? bbAlphas; // 布林通道透明度設定
-  final List<KlineSelection>? klineSelections; // 保存されたK線選択区域
-  final List<Map<String, dynamic>>? mergedWavePoints; // 最適化：事前にマージとソートされたウェーブポイント
-  final bool isWavePointsVisible; // ウェーブポイントが表示されるか
-  final bool isWavePointsLineVisible; // ウェーブポイント接続線が表示されるか
-  final List<ManualHighLowPoint>? manualHighLowPoints; // 手動高低点データ
-  final bool isManualHighLowVisible; // 手動高低点が表示されるか
-  final List<TrendLine>? trendLines; // 斜线数据
-  final String? selectedTrendLineId; // 当前选中的斜线ID
   final Color? backgroundColor; // 背景色
   final bool isKlineVisible; // K線表示/非表示
   final bool isMaTrendBackgroundEnabled; // 移动平均线趋势背景是否启用
   final List<Color?>? maTrendBackgroundColors; // 移动平均线趋势背景颜色
   final TradingPair? selectedTradingPair;
+  // Object贴层数据（所有斜线/形状/选区等都应进入此集合）
   final List<ChartObject> chartObjects;
   final ChartObjectRendererRegistry _objectRendererRegistry =
       ChartObjectRendererRegistry();
@@ -86,22 +71,8 @@ class CandlestickPainter extends CustomPainter {
     this.maVisibility,
     this.maColorSettings,
     this.maAlphas,
-    this.verticalLines,
-    this.selectionStartX,
-    this.selectionEndX,
-    this.selectedKlineCount = 0,
-    this.klineSelections,
-    this.mergedWavePoints,
-    this.isWavePointsVisible = true,
-    this.isWavePointsLineVisible = false,
-    this.manualHighLowPoints,
-    this.isManualHighLowVisible = true,
-    this.trendLines,
-    this.selectedTrendLineId,
     this.backgroundColor,
     this.isKlineVisible = true,
-    this.filteredWavePoints,
-    this.isTrendFilteringEnabled = false,
     this.cubicCurveResult,
     this.isCubicCurveVisible = false,
     this.ma60FilteredCurveResult,
@@ -159,6 +130,10 @@ class CandlestickPainter extends CustomPainter {
       ..strokeWidth = 0.5
       ..style = PaintingStyle.stroke;
 
+    // ==========================
+    // 1) K线背景板（Board）
+    // ==========================
+
     // グリッド線を描画
     _drawGrid(canvas, size, gridPaint);
 
@@ -172,12 +147,10 @@ class CandlestickPainter extends CustomPainter {
     // 移動平均線を描画
     _drawMovingAverages(canvas, size);
 
-    if (chartObjects.isNotEmpty) {
-      _drawChartObjectsByLayer(canvas, size, ChartObjectLayer.aboveIndicators);
-    } else {
-      _drawVerticalLines(canvas, size);
-      _drawUserTrendLines(canvas, size);
-    }
+    // ==========================
+    // 2) Object贴层（Stickers）
+    // ==========================
+    _drawChartObjectsByLayer(canvas, size, ChartObjectLayer.aboveIndicators);
 
     // 価格ラベルを描画
     _drawPriceLabels(canvas, size);
@@ -188,42 +161,7 @@ class CandlestickPainter extends CustomPainter {
     // 十字カーソルとラベルを描画
     _drawCrosshairAndLabels(canvas, size);
 
-    // ウェーブポイントを描画（旧描画経路。对象管线未覆盖时作为回退）
-    if (!_hasObjectType<WavePointObject>() && isWavePointsVisible && mergedWavePoints != null) {
-      _drawWavePoints(canvas, size);
-    }
-
-    // ウェーブポイント接続線を描画（旧描画経路回退）
-    if (!_hasObjectType<WavePolylineObject>() && isWavePointsLineVisible && isWavePointsVisible && mergedWavePoints != null) {
-      _drawWavePointsLine(canvas, size);
-    }
-
-    // 手動高低点を描画（旧描画経路回退）
-    if (!_hasObjectType<ManualHighLowObject>() && isManualHighLowVisible && manualHighLowPoints != null) {
-      _drawManualHighLowPoints(canvas, size);
-    }
-
-
-    // トレンドフィルタリングされた高低点を描画
-    if (isTrendFilteringEnabled) {
-      final hasTrendAnalysisObjects =
-          _hasObjectType<FilteredWavePointObject>() ||
-          _hasObjectType<TrendAnalysisLineObject>() ||
-          _hasObjectType<SmoothTrendPolylineObject>() ||
-          _hasObjectType<FittedCurveObject>();
-
-      if (!hasTrendAnalysisObjects) {
-        // // LogService.instance.debug('CandlestickPainter', 'トレンドフィルタリング描画開始');
-        // // LogService.instance.debug('CandlestickPainter', 'filteredWavePoints: ${filteredWavePoints != null ? "存在" : "null"}');
-        _drawFilteredWavePoints(canvas);
-        _drawTrendLines(canvas);
-        _drawSmoothTrendLine(canvas); // 滑らかな折線を描画
-        _drawFittedCurve(canvas); // 拟合曲线を描画
-        // // LogService.instance.debug('CandlestickPainter', 'トレンドフィルタリング描画完了');
-      }
-    } else {
-      // // LogService.instance.debug('CandlestickPainter', 'トレンドフィルタリング無効、描画スキップ');
-    }
+    // 线/形类覆盖物统一走 Object 管线，不再使用旧直绘回退路径。
 
     // 3次曲线绘制
     if (isCubicCurveVisible && cubicCurveResult != null) {
@@ -269,12 +207,7 @@ class CandlestickPainter extends CustomPainter {
       );
     }
 
-    if (chartObjects.isNotEmpty) {
-      _drawChartObjectsByLayer(canvas, size, ChartObjectLayer.interaction);
-    } else {
-      _drawSavedKlineSelections(canvas, size);
-      _drawSelectionArea(canvas, size);
-    }
+    _drawChartObjectsByLayer(canvas, size, ChartObjectLayer.interaction);
 
     // 性能監視：描画完了時間
     stopwatch.stop();
@@ -304,15 +237,6 @@ class CandlestickPainter extends CustomPainter {
       objects: chartObjects,
       layer: layer,
     );
-  }
-
-  bool _hasObjectType<T extends ChartObject>() {
-    for (final object in chartObjects) {
-      if (object is T) {
-        return true;
-      }
-    }
-    return false;
   }
 
   void _drawGrid(Canvas canvas, Size size, Paint gridPaint) {
@@ -577,103 +501,6 @@ class CandlestickPainter extends CustomPainter {
     }
   }
 
-  void _drawVerticalLines(Canvas canvas, Size size) {
-    if (verticalLines == null || verticalLines!.isEmpty) return;
-
-    // 性能監視：縦線描画開始時間
-    final stopwatch = Stopwatch()..start();
-
-    int drawnLines = 0;
-    for (final VerticalLine verticalLine in verticalLines!) {
-      // 使用工具类根据时间戳查找对应的K线索引
-      final candleIndex = _findKlineIndexByTimestamp(verticalLine.timestamp);
-      
-      // 如果找不到对应的K线，跳过
-      if (candleIndex == null) {
-        Log.debug('CandlestickPainter', '竖线时间戳 ${KlineTimestampUtils.formatTimestamp(verticalLine.timestamp)} 在当前数据中未找到对应K线');
-        continue;
-      }
-      
-      // 检查索引是否在显示范围内
-      if (candleIndex < startIndex || candleIndex >= endIndex) {
-        continue;
-      }
-
-      // 統一された座標計算方法を使用し、K線描画と一致することを保証
-      final double x = _getCandleXPosition(candleIndex);
-      
-      // 座標が有効かチェック
-      if (x < 0) continue;
-
-      // 色を解析
-      Color lineColor;
-      try {
-        lineColor = Color(int.parse(verticalLine.color.replaceFirst('#', '0xFF')));
-      } catch (e) {
-        lineColor = Colors.red; // デフォルト色
-      }
-
-      // 縦線を描画
-      final Paint linePaint = Paint()
-        ..color = lineColor
-        ..strokeWidth = verticalLine.width
-        ..style = PaintingStyle.stroke;
-
-      canvas.drawLine(
-        Offset(x, 0),
-        Offset(x, size.height),
-        linePaint,
-      );
-      
-      drawnLines++;
-    }
-
-    stopwatch.stop();
-    
-    // 性能監視：縦線描画時間が長すぎる場合に警告を発出
-    if (stopwatch.elapsedMilliseconds > 5) {
-      Log.warning('CandlestickPainter', '⚠️ 縦線描画性能警告: ${stopwatch.elapsedMilliseconds}ms (描画: $drawnLines本, 総数: ${verticalLines!.length}本)');
-    }
-  }
-
-  void _drawUserTrendLines(Canvas canvas, Size size) {
-    if (trendLines == null || trendLines!.isEmpty) return;
-
-    for (final line in trendLines!) {
-      final double startX = _getCandleXPosition(line.startIndex);
-      final double endX = _getCandleXPosition(line.endIndex);
-      final double startY = _priceToY(line.startPrice, size.height);
-      final double endY = _priceToY(line.endPrice, size.height);
-
-      if ((startX < -100 && endX < -100) || (startX > size.width + 100 && endX > size.width + 100)) {
-        continue;
-      }
-
-      Color lineColor;
-      try {
-        lineColor = Color(int.parse(line.color.replaceFirst('#', '0xFF')));
-      } catch (_) {
-        lineColor = Colors.amber;
-      }
-
-      final bool isSelected = selectedTrendLineId == line.id;
-      final Paint linePaint = Paint()
-        ..color = isSelected ? Colors.lightBlueAccent : lineColor
-        ..strokeWidth = isSelected ? (line.width + 1.2) : line.width
-        ..style = PaintingStyle.stroke;
-
-      canvas.drawLine(Offset(startX, startY), Offset(endX, endY), linePaint);
-
-      if (isSelected) {
-        final Paint handlePaint = Paint()
-          ..color = Colors.lightBlueAccent
-          ..style = PaintingStyle.fill;
-        canvas.drawCircle(Offset(startX, startY), 4.0, handlePaint);
-        canvas.drawCircle(Offset(endX, endY), 4.0, handlePaint);
-      }
-    }
-  }
-
   void _drawPriceLabels(Canvas canvas, Size size) {
     final pair = selectedTradingPair ?? TradingPair.eurusd;
     final TextPainter textPainter = TextPainter(
@@ -888,223 +715,8 @@ class CandlestickPainter extends CustomPainter {
          oldDelegate.maVisibility != maVisibility ||
          oldDelegate.maColorSettings != maColorSettings ||
          oldDelegate.maAlphas != maAlphas ||
-        oldDelegate.verticalLines != verticalLines ||
-        oldDelegate.selectionStartX != selectionStartX ||
-        oldDelegate.selectionEndX != selectionEndX ||
-        oldDelegate.selectedKlineCount != selectedKlineCount ||
-        oldDelegate.klineSelections != klineSelections ||
-        oldDelegate.mergedWavePoints != mergedWavePoints ||
-        oldDelegate.isWavePointsVisible != isWavePointsVisible ||
-        oldDelegate.isWavePointsLineVisible != isWavePointsLineVisible ||
-          oldDelegate.trendLines != trendLines ||
-          oldDelegate.selectedTrendLineId != selectedTrendLineId ||
         oldDelegate.chartObjects != chartObjects ||
         oldDelegate.isKlineVisible != isKlineVisible;
-  }
-
-  /// 選択区域を描画
-  void _drawSelectionArea(Canvas canvas, Size size) {
-    if (selectionStartX == null || selectionEndX == null) return;
-
-    final double startX = selectionStartX!;
-    final double endX = selectionEndX!;
-    
-    // startX <= endXを保証
-    final double minX = startX < endX ? startX : endX;
-    final double maxX = startX < endX ? endX : startX;
-
-    // 調整後の境界を計算し、最初と最後のK線が矩形区域内に完全に含まれることを保証
-    final double adjustedMinX = _getAdjustedSelectionMinX(minX);
-    final double adjustedMaxX = _getAdjustedSelectionMaxX(maxX);
-
-    // 半透明選択区域を描画
-    final Paint selectionPaint = Paint()
-      ..color = Colors.blue.withValues(alpha: 0.2)
-      ..style = PaintingStyle.fill;
-
-    canvas.drawRect(
-      Rect.fromLTRB(adjustedMinX, 0, adjustedMaxX, size.height),
-      selectionPaint,
-    );
-
-    // 選択区域ボーダーを描画
-    final Paint borderPaint = Paint()
-      ..color = Colors.blue
-      ..strokeWidth = 2.0
-      ..style = PaintingStyle.stroke;
-
-    canvas.drawRect(
-      Rect.fromLTRB(adjustedMinX, 0, adjustedMaxX, size.height),
-      borderPaint,
-    );
-
-    // K線数がある場合、統計情報を表示
-    if (selectedKlineCount > 0) {
-      _drawSelectionInfo(canvas, size, adjustedMinX, adjustedMaxX);
-    }
-  }
-
-  /// 調整後の選択区域最小X座標を計算し、最初のK線が完全に含まれることを保証
-  double _getAdjustedSelectionMinX(double minX) {
-    // 最初のK線の左境界を計算
-    final double candleLeft = minX - (candleWidth / 2);
-    return candleLeft;
-  }
-
-  /// 調整後の選択区域最大X座標を計算し、最後のK線が完全に含まれることを保証
-  double _getAdjustedSelectionMaxX(double maxX) {
-    // 最後のK線の右境界を計算
-    final double candleRight = maxX + (candleWidth / 2);
-    return candleRight;
-  }
-
-  /// 選択区域情報を描画
-  void _drawSelectionInfo(Canvas canvas, Size size, double minX, double maxX) {
-    final String infoText = '選択されたK線: $selectedKlineCount 本';
-    
-    final TextPainter textPainter = TextPainter(
-      text: TextSpan(
-        text: infoText,
-        style: TextStyle(
-          color: Colors.blue,
-          fontSize: 14,
-          fontWeight: FontWeight.bold,
-          backgroundColor: Colors.white.withValues(alpha: 0.8),
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    
-    textPainter.layout();
-    
-    // 選択区域の上に情報を表示
-    final double textX = (minX + maxX) / 2 - textPainter.width / 2;
-    final double textY = 20.0;
-    
-    // 背景を描画
-    final Paint backgroundPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.8)
-      ..style = PaintingStyle.fill;
-    
-    canvas.drawRect(
-      Rect.fromLTWH(
-        textX - 4, 
-        textY - 2, 
-        textPainter.width + 8, 
-        textPainter.height + 4
-      ),
-      backgroundPaint,
-    );
-    
-    // 文字を描画
-    textPainter.paint(canvas, Offset(textX, textY));
-  }
-
-  /// 保存されたK線選択区域を描画
-  void _drawSavedKlineSelections(Canvas canvas, Size size) {
-    if (klineSelections == null || klineSelections!.isEmpty) return;
-
-    for (final selection in klineSelections!) {
-      // 使用工具类根据时间戳查找对应的K线索引
-      final startCandleIndex = _findKlineIndexByTimestamp(selection.startTimestamp);
-      final endCandleIndex = _findKlineIndexByTimestamp(selection.endTimestamp);
-      
-      // 如果找不到对应的K线，跳过
-      if (startCandleIndex == null || endCandleIndex == null) {
-        Log.debug('CandlestickPainter', 'K线选择区域时间戳范围 ${KlineTimestampUtils.formatTimestamp(selection.startTimestamp)} - ${KlineTimestampUtils.formatTimestamp(selection.endTimestamp)} 在当前数据中未找到对应K线');
-        continue;
-      }
-      
-      // 检查索引是否在显示范围内
-      if (startCandleIndex < startIndex || endCandleIndex >= endIndex) {
-        continue;
-      }
-
-      // 選択区域の画面上での位置を計算
-      final double startX = _getCandleXPosition(startCandleIndex);
-      final double endX = _getCandleXPosition(endCandleIndex);
-      
-      // 境界を調整して、最初と最後のK線を完全に含める
-      final double adjustedStartX = _getAdjustedSelectionMinX(startX);
-      final double adjustedEndX = _getAdjustedSelectionMaxX(endX);
-
-      // 半透明選択区域を描画
-      final Paint selectionPaint = Paint()
-        ..color = _parseColor(selection.color).withValues(alpha: selection.opacity)
-        ..style = PaintingStyle.fill;
-
-      canvas.drawRect(
-        Rect.fromLTRB(adjustedStartX, 0, adjustedEndX, size.height),
-        selectionPaint,
-      );
-
-      // 選択区域の境界線を描画
-      final Paint borderPaint = Paint()
-        ..color = _parseColor(selection.color)
-        ..strokeWidth = 2.0
-        ..style = PaintingStyle.stroke;
-
-      canvas.drawRect(
-        Rect.fromLTRB(adjustedStartX, 0, adjustedEndX, size.height),
-        borderPaint,
-      );
-
-      // 選択区域情報を描画
-      _drawSavedSelectionInfo(canvas, size, adjustedStartX, adjustedEndX, selection);
-    }
-  }
-
-  /// 保存された選択区域情報を描画
-  void _drawSavedSelectionInfo(Canvas canvas, Size size, double minX, double maxX, KlineSelection selection) {
-    final String infoText = 'K線: ${selection.klineCount} 本';
-    
-    final TextPainter textPainter = TextPainter(
-      text: TextSpan(
-        text: infoText,
-        style: TextStyle(
-          color: _parseColor(selection.color),
-          fontSize: 12,
-          fontWeight: FontWeight.bold,
-          backgroundColor: Colors.white.withValues(alpha: 0.8),
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    
-    textPainter.layout();
-    
-    // 選択区域の上に情報を表示
-    final double textX = (minX + maxX) / 2 - textPainter.width / 2;
-    final double textY = 10.0;
-    
-    // 背景を描画
-    final Paint backgroundPaint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.8)
-      ..style = PaintingStyle.fill;
-    
-    canvas.drawRect(
-      Rect.fromLTWH(
-        textX - 4, 
-        textY - 2, 
-        textPainter.width + 8, 
-        textPainter.height + 4
-      ),
-      backgroundPaint,
-    );
-    
-    // 文字を描画
-    textPainter.paint(canvas, Offset(textX, textY));
-  }
-
-  /// 色文字列を解析
-  Color _parseColor(String colorString) {
-    try {
-      // #記号を削除してColorに変換
-      final String hexColor = colorString.replaceAll('#', '');
-      return Color(int.parse('FF$hexColor', radix: 16));
-    } catch (e) {
-      return Colors.blue; // デフォルト色
-    }
   }
 
   /// K線の画面上でのX位置を取得（中心点）
@@ -1126,622 +738,6 @@ class CandlestickPainter extends CustomPainter {
     return startDrawX + (relativeIndex * totalWidth) + (candleWidth / 2);
   }
 
-  /// ウェーブポイントを描画
-  void _drawWavePoints(Canvas canvas, Size size) {
-    final Paint highPointBorderPaint = Paint()
-      ..color = Colors.red.withValues(alpha: 0.7)
-      ..strokeWidth = 2.0
-      ..style = PaintingStyle.stroke;
-
-    final Paint lowPointBorderPaint = Paint()
-      ..color = Colors.blue.withValues(alpha: 0.7)
-      ..strokeWidth = 2.0
-      ..style = PaintingStyle.stroke;
-
-    for (final point in mergedWavePoints!) {
-      final int index = point['index'] as int;
-      if (index < startIndex || index >= endIndex) continue;
-
-      final double x = _getCandleXPosition(index);
-      if (x < 0) continue;
-
-      final double y = _priceToY(point['value'] as double, size.height);
-      final String type = point['type'] as String;
-
-      final Paint paint = type == 'high' ? highPointBorderPaint : lowPointBorderPaint;
-
-      // マーカーを描画（正方形）
-      final double pointSize = 8.0;
-      final Rect squareRect = Rect.fromCenter(
-        center: Offset(x, y),
-        width: pointSize * 2,
-        height: pointSize * 2,
-      );
-
-      canvas.drawRect(squareRect, paint);
-    }
-  }
-
-  /// ウェーブポイント接続線を描画
-  void _drawWavePointsLine(Canvas canvas, Size size) {
-    // 最適化：事前にソートとマージされたmergedWavePointsリストを直接使用
-    final allWavePoints = mergedWavePoints!;
-    if (allWavePoints.length < 2) return;
-
-    // 接続線を描画
-    final Paint linePaint = Paint()
-      ..color = Colors.orange.withValues(alpha: 0.8)
-      ..strokeWidth = 2.0
-      ..style = PaintingStyle.stroke;
-
-    // 最適化：二分探索を使用して描画開始点を高速で特定し、全リストスキャンを回避
-    int firstVisiblePointIndex = _findFirstPointIndex(allWavePoints, startIndex);
-
-    // すべてのポイントが画面左側にある場合、描画不要
-    if (firstVisiblePointIndex == -1) {
-      if (allWavePoints.isNotEmpty && (allWavePoints.last['index'] as int) < startIndex) {
-        return;
-      }
-      firstVisiblePointIndex = 0; // そうでなければ、最初からチェック
-    }
-
-    // 描画開始ポイントインデックスを決定（画面外の左側隣接ポイントを含む）
-    int startDrawingIndex = (firstVisiblePointIndex > 0) ? firstVisiblePointIndex - 1 : 0;
-
-    // 線分をループ描画
-    for (int i = startDrawingIndex; i < allWavePoints.length - 1; i++) {
-      final currentPoint = allWavePoints[i];
-      final nextPoint = allWavePoints[i + 1];
-
-      final int currentIndex = currentPoint['index'] as int;
-      final int nextIndex = nextPoint['index'] as int;
-
-      // 最適化：現在の点が画面の右側をはるかに超えている場合は、ループを早期に終了できます
-      if (currentIndex > endIndex) {
-        break;
-      }
-
-      // 現在のポイントの位置を計算
-      double x1 = _getCandleXPosition(currentIndex);
-      double y1 = _priceToY(currentPoint['value'] as double, size.height);
-
-      // 次のポイントの位置を計算
-      double x2 = _getCandleXPosition(nextIndex);
-      double y2 = _priceToY(nextPoint['value'] as double, size.height);
-
-      // FlutterのCanvasは画面外の描画クリッピングを自動処理するため、直接線を描画
-      canvas.drawLine(Offset(x1, y1), Offset(x2, y2), linePaint);
-    }
-  }
-
-  /// 二分探索で、最初の可視ウェーブポイントのリスト内インデックスを見つける
-  int _findFirstPointIndex(List<Map<String, dynamic>> points, int startVisibleIndex) {
-    int low = 0;
-    int high = points.length - 1;
-    int result = -1;
-
-    while (low <= high) {
-      int mid = low + ((high - low) >> 1);
-      if ((points[mid]['index'] as int) >= startVisibleIndex) {
-        result = mid;
-        high = mid - 1; // より早い（より左の）マッチ項目を見つけようとする
-      } else {
-        low = mid + 1;
-      }
-    }
-    return result;
-  }
-
-  /// 手動高低点を描画
-  void _drawManualHighLowPoints(Canvas canvas, Size size) {
-    if (manualHighLowPoints == null || manualHighLowPoints!.isEmpty) return;
-    final pair = selectedTradingPair ?? TradingPair.eurusd;
-
-    // 性能監視：手動高低点描画開始時間
-    final stopwatch = Stopwatch()..start();
-
-    int drawnPoints = 0;
-    for (final point in manualHighLowPoints!) {
-      // 使用工具类根据时间戳查找对应的K线索引
-      final candleIndex = _findKlineIndexByTimestamp(point.timestamp);
-      
-      // 如果找不到对应的K线，跳过
-      if (candleIndex == null) {
-        Log.debug('CandlestickPainter', '手動高低点時間戳 ${KlineTimestampUtils.formatTimestamp(point.timestamp)} 在当前数据中未找到对应K线');
-        continue;
-      }
-      
-      // 检查索引是否在显示范围内
-      if (candleIndex < startIndex || candleIndex >= endIndex) {
-        continue;
-      }
-
-      // 計算高低点の画面上での位置
-      final double x = _getCandleXPosition(candleIndex);
-      final double y = _priceToY(point.price, chartHeight);
-      
-      // 座標が有効かチェック
-      if (x < 0 || x > chartWidth || y < 0 || y > chartHeight) {
-        continue;
-      }
-
-      // 高低点の描画スタイルを設定
-      final Paint pointPaint = Paint()
-        ..color = point.isHigh ? Colors.orange : Colors.blue
-        ..style = PaintingStyle.fill;
-
-      final Paint borderPaint = Paint()
-        ..color = point.isHigh ? Colors.red : Colors.green
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0;
-
-      // 高低点を描画（三角形）
-      final Path trianglePath = Path();
-      const double triangleSize = 8.0;
-      
-      if (point.isHigh) {
-        // 高値：上向き三角形
-        trianglePath.moveTo(x, y - triangleSize);
-        trianglePath.lineTo(x - triangleSize, y + triangleSize);
-        trianglePath.lineTo(x + triangleSize, y + triangleSize);
-        trianglePath.close();
-      } else {
-        // 安値：下向き三角形
-        trianglePath.moveTo(x, y + triangleSize);
-        trianglePath.lineTo(x - triangleSize, y - triangleSize);
-        trianglePath.lineTo(x + triangleSize, y - triangleSize);
-        trianglePath.close();
-      }
-
-      // 三角形を描画
-      canvas.drawPath(trianglePath, pointPaint);
-      canvas.drawPath(trianglePath, borderPaint);
-
-      // 価格ラベルを描画
-      final TextPainter textPainter = TextPainter(
-        text: TextSpan(
-          text: pair.formatPrice(point.price),
-          style: TextStyle(
-            color: point.isHigh ? Colors.red : Colors.green,
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      );
-      
-      textPainter.layout();
-      
-      // ラベルの位置を調整（高低点の近くに配置）
-      double labelX = x - textPainter.width / 2;
-      double labelY = point.isHigh ? y - triangleSize - textPainter.height - 2 : y + triangleSize + 2;
-      
-      // ラベルが画面外に出ないように調整
-      labelX = labelX.clamp(0, chartWidth - textPainter.width);
-      labelY = labelY.clamp(textPainter.height, chartHeight);
-      
-      textPainter.paint(canvas, Offset(labelX, labelY));
-
-      drawnPoints++;
-    }
-
-    // パフォーマンス監視: 手動による最高点と最低点の描画完了時間
-    stopwatch.stop();
-    if (stopwatch.elapsedMilliseconds > 5) {
-      Log.debug('CandlestickPainter', '手動高低点描画時間: ${stopwatch.elapsedMilliseconds}ms, 描画点数: $drawnPoints');
-    }
-  }
-
-
-
-
-  /// タイムスタンプでK線インデックスを検索（バイナリサーチで最適化）
-  ///
-  /// @param timestamp 検索するタイムスタンプ
-  /// @return K線インデックス。見つからない場合はnull
-  int? _findKlineIndexByTimestamp(int timestamp) {
-    if (data.isEmpty) {
-      return null;
-    }
-
-    int low = 0;
-    int high = data.length - 1;
-    int? result;
-
-    while (low <= high) {
-      int mid = low + ((high - low) >> 1);
-      final midTimestamp = data[mid].timestamp;
-
-      if (midTimestamp == timestamp) {
-        return mid; // 完全一致
-      } else if (midTimestamp < timestamp) {
-        result = mid; // 候補として保存
-        low = mid + 1;
-      } else {
-        high = mid - 1;
-      }
-    }
-    
-    // `result`には、対象のタイムスタンプ以下の最後の要素のインデックスが保持されます。
-    // これは、補間された点がどのK線に属するかを決定するための正しい動作です。
-    return result;
-  }
-
-
-  /// フィルタリングされた高低点を描画
-  void _drawFilteredWavePoints(Canvas canvas) {
-    // LogService.instance.debug('CandlestickPainter', '_drawFilteredWavePoints開始');
-    
-    if (!isTrendFilteringEnabled || filteredWavePoints == null) {
-      // LogService.instance.debug('CandlestickPainter', 'フィルタリング条件未満足、描画スキップ');
-      return;
-    }
-
-    final filteredHighPoints = filteredWavePoints!.filteredHighPoints;
-    final filteredLowPoints = filteredWavePoints!.filteredLowPoints;
-    final originalPoints = filteredWavePoints!.originalPoints;
-    
-    // LogService.instance.debug('CandlestickPainter', '元のピボット候補: ${originalPoints.length}個');
-    // LogService.instance.debug('CandlestickPainter', 'フィルタリングされた高値点: ${filteredHighPoints.length}個');
-    // LogService.instance.debug('CandlestickPainter', 'フィルタリングされた低値点: ${filteredLowPoints.length}個');
-
-    // 1. 元のピボット候補を薄い点で表示（参考用）
-    for (final point in originalPoints) {
-      final index = point['index'] as int;
-      if (index < startIndex || index > endIndex) continue;
-
-      final x = _getCandleXPosition(index);
-      final y = _priceToY(point['value'] as double, chartHeight);
-      final pointType = point['type'] as String;
-
-      // 元のピボット候補は薄い色で小さく表示
-      final paint = Paint()
-        ..color = pointType == 'high' 
-          ? Colors.green.withValues(alpha: 0.3)
-          : Colors.red.withValues(alpha: 0.3)
-        ..style = PaintingStyle.fill;
-      
-      canvas.drawCircle(Offset(x, y), 3, paint);
-    }
-
-    // 2. フィルタリングされた高値点を描画（有効ポイント）
-    for (final point in filteredHighPoints) {
-      final index = point['index'] as int;
-      if (index < startIndex || index > endIndex) continue;
-
-      final x = _getCandleXPosition(index);
-      final y = _priceToY(point['value'] as double, chartHeight);
-
-      // フィルタリングされた高値点は緑色の大きな円で描画
-      final paint = Paint()
-        ..color = Colors.green
-        ..style = PaintingStyle.fill;
-      
-      canvas.drawCircle(Offset(x, y), 6, paint);
-
-      // 外側に白い枠線
-      final borderPaint = Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2;
-      
-      canvas.drawCircle(Offset(x, y), 6, borderPaint);
-    }
-
-    // 3. フィルタリングされた低値点を描画（有効ポイント）
-    for (final point in filteredLowPoints) {
-      final index = point['index'] as int;
-      if (index < startIndex || index > endIndex) continue;
-
-      final x = _getCandleXPosition(index);
-      final y = _priceToY(point['value'] as double, chartHeight);
-
-      // フィルタリングされた低値点は赤色の大きな円で描画
-    final paint = Paint()
-        ..color = Colors.red
-        ..style = PaintingStyle.fill;
-      
-      canvas.drawCircle(Offset(x, y), 6, paint);
-
-      // 外側に白い枠線
-      final borderPaint = Paint()
-        ..color = Colors.white
-      ..style = PaintingStyle.stroke
-        ..strokeWidth = 2;
-      
-      canvas.drawCircle(Offset(x, y), 6, borderPaint);
-    }
-
-    // 4. 有効ポイント同士を折れ線で連結（スイングライン）
-    _drawSwingLines(canvas, filteredHighPoints, filteredLowPoints);
-    
-    // LogService.instance.debug('CandlestickPainter', '_drawFilteredWavePoints完了');
-  }
-
-  /// スイングライン（有効ポイント同士の折れ線）を描画
-  void _drawSwingLines(Canvas canvas, List<Map<String, dynamic>> highPoints, List<Map<String, dynamic>> lowPoints) {
-    // すべてのポイントを時系列順にマージ
-    final List<Map<String, dynamic>> allPoints = [];
-    allPoints.addAll(highPoints);
-    allPoints.addAll(lowPoints);
-    
-    if (allPoints.length < 2) return;
-    
-    // インデックス順にソート
-    allPoints.sort((a, b) => (a['index'] as int).compareTo(b['index'] as int));
-    
-    // スイングラインを描画
-    final Paint swingLinePaint = Paint()
-      ..color = Colors.blue.withValues(alpha: 0.7)
-      ..strokeWidth = 2.0
-      ..style = PaintingStyle.stroke;
-    
-    for (int i = 0; i < allPoints.length - 1; i++) {
-      final currentPoint = allPoints[i];
-      final nextPoint = allPoints[i + 1];
-      
-      final currentIndex = currentPoint['index'] as int;
-      final nextIndex = nextPoint['index'] as int;
-      
-      // 表示範囲外の場合はスキップ
-      if (currentIndex < startIndex || nextIndex > endIndex) continue;
-      
-      final x1 = _getCandleXPosition(currentIndex);
-      final y1 = _priceToY(currentPoint['value'] as double, chartHeight);
-      final x2 = _getCandleXPosition(nextIndex);
-      final y2 = _priceToY(nextPoint['value'] as double, chartHeight);
-      
-      canvas.drawLine(Offset(x1, y1), Offset(x2, y2), swingLinePaint);
-    }
-  }
-
-  /// トレンドラインを描画
-  void _drawTrendLines(Canvas canvas) {
-    // LogService.instance.debug('CandlestickPainter', '_drawTrendLines開始');
-    
-    if (!isTrendFilteringEnabled || filteredWavePoints == null) {
-      // LogService.instance.debug('CandlestickPainter', 'トレンドライン描画条件未満足、描画スキップ');
-      return;
-    }
-
-    final trendLines = filteredWavePoints!.trendLines;
-    // LogService.instance.debug('CandlestickPainter', 'トレンドライン数: ${trendLines.length}本');
-    
-    if (trendLines.isEmpty) {
-      // LogService.instance.warning('CandlestickPainter', 'トレンドラインが生成されていません！');
-      // 临时：绘制测试趋势线
-      _drawTestTrendLine(canvas);
-      return;
-    }
-    
-    for (final trendLine in trendLines) {
-      // トレンドラインの強度に応じて色を決定
-      Color lineColor;
-      double lineWidth;
-      
-      switch (trendLine.strengthLevel) {
-        case 'strong':
-          lineColor = trendLine.type == 'high' ? Colors.green : Colors.red;
-          lineWidth = 3.0;
-        break;
-        case 'moderate':
-          lineColor = trendLine.type == 'high' ? Colors.green.shade300 : Colors.red.shade300;
-          lineWidth = 2.5;
-          break;
-        case 'weak':
-          lineColor = trendLine.type == 'high' ? Colors.green.shade200 : Colors.red.shade200;
-          lineWidth = 2.0;
-          break;
-        default:
-          lineColor = trendLine.type == 'high' ? Colors.green.shade100 : Colors.red.shade100;
-          lineWidth = 1.5;
-      }
-
-      // トレンドラインの開始点と終了点が表示範囲内かチェック
-      if (trendLine.startIndex > endIndex || trendLine.endIndex < startIndex) continue;
-
-      final startX = _getCandleXPosition(trendLine.startIndex);
-      final endX = _getCandleXPosition(trendLine.endIndex);
-      final startY = _priceToY(trendLine.startValue, chartHeight);
-      final endY = _priceToY(trendLine.endValue, chartHeight);
-
-      final paint = Paint()
-        ..color = lineColor
-        ..strokeWidth = lineWidth
-        ..style = PaintingStyle.stroke;
-
-      // トレンドラインを描画
-      canvas.drawLine(Offset(startX, startY), Offset(endX, endY), paint);
-
-      // トレンドラインの方向を示す矢印を描画
-      _drawTrendArrow(canvas, Offset(endX, endY), trendLine.direction, lineColor);
-    }
-    
-    // LogService.instance.debug('CandlestickPainter', '_drawTrendLines完了');
-  }
-
-  /// トレンドラインの方向矢印を描画
-  void _drawTrendArrow(Canvas canvas, Offset position, String direction, Color color) {
-    if (direction == 'horizontal') return;
-
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.fill;
-
-    const double arrowSize = 8.0;
-    final Path arrowPath = Path();
-
-    if (direction == 'upward') {
-      // 上向き矢印
-      arrowPath.moveTo(position.dx, position.dy - arrowSize);
-      arrowPath.lineTo(position.dx - arrowSize / 2, position.dy);
-      arrowPath.lineTo(position.dx + arrowSize / 2, position.dy);
-      arrowPath.close();
-    } else if (direction == 'downward') {
-      // 下向き矢印
-      arrowPath.moveTo(position.dx, position.dy + arrowSize);
-      arrowPath.lineTo(position.dx - arrowSize / 2, position.dy);
-      arrowPath.lineTo(position.dx + arrowSize / 2, position.dy);
-      arrowPath.close();
-    }
-
-    canvas.drawPath(arrowPath, paint);
-  }
-
-  /// 滑らかな折線を描画（150均線に沿った黄色の折線）
-  void _drawSmoothTrendLine(Canvas canvas) {
-    if (filteredWavePoints?.smoothTrendLine == null) {
-      // LogService.instance.warning('CandlestickPainter', '滑らかな折線データが存在しません！filteredWavePoints=${filteredWavePoints != null ? "存在" : "null"}');
-      return;
-    }
-
-    final smoothTrendLine = filteredWavePoints!.smoothTrendLine!;
-    final points = smoothTrendLine.points;
-    
-    if (points.length < 2) {
-      // LogService.instance.debug('CandlestickPainter', '滑らかな折線の点が不足: ${points.length}個');
-      return;
-    }
-
-    // LogService.instance.debug('CandlestickPainter', '滑らかな折線描画開始: ${points.length}個の点');
-
-    // 黄色の太い線で描画（より目立つ色に変更）
-    final paint = Paint()
-      ..color = Colors.orange // オレンジ色に変更してより目立つように
-      ..strokeWidth = 4.0     // 線を太くしてより見やすく
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final path = Path();
-    bool isFirstPoint = true;
-    int drawnPoints = 0;
-
-    // LogService.instance.debug('CandlestickPainter', '描画範囲: startIndex=$startIndex, endIndex=$endIndex');
-
-    for (final point in points) {
-      final index = point['index'] as int;
-      // // LogService.instance.debug('CandlestickPainter', '平滑折线点: index=$index, startIndex=$startIndex, endIndex=$endIndex');
-      // 移除索引范围限制，让平滑折线始终显示
-      // if (index < startIndex || index >= endIndex) {
-      //   skippedPoints++;
-      //   // LogService.instance.debug('CandlestickPainter', '平滑折线点跳过: index=$index 超出范围');
-      //   continue;
-      // }
-
-      final x = _getCandleXPosition(index);
-      if (x < 0) {
-        continue;
-      }
-      
-      final y = _priceToY(point['value'] as double, chartHeight);
-      final position = Offset(x, y);
-
-      if (isFirstPoint) {
-        path.moveTo(position.dx, position.dy);
-        isFirstPoint = false;
-        // LogService.instance.debug('CandlestickPainter', '最初の点: index=$index, x=$x, y=$y');
-      } else {
-        path.lineTo(position.dx, position.dy);
-      }
-      drawnPoints++;
-    }
-
-    // LogService.instance.debug('CandlestickPainter', '描画統計: 描画点=$drawnPoints個, スキップ点=$skippedPoints個');
-
-    if (drawnPoints > 0) {
-    canvas.drawPath(path, paint);
-      // LogService.instance.debug('CandlestickPainter', '滑らかな折線描画完了: $drawnPoints個の点を描画');
-    } else {
-      // LogService.instance.debug('CandlestickPainter', '滑らかな折線描画スキップ: 描画可能な点がありません');
-    }
-  }
-
-  /// 拟合曲线を描画（青色の滑らかな曲線）
-  void _drawFittedCurve(Canvas canvas) {
-    if (filteredWavePoints?.fittedCurve.isEmpty ?? true) {
-      // LogService.instance.warning('CandlestickPainter', '拟合曲线データが存在しません！fittedCurve=${filteredWavePoints?.fittedCurve.length ?? 0}個');
-      return;
-    }
-
-    final fittedCurve = filteredWavePoints!.fittedCurve;
-    
-    if (fittedCurve.length < 2) {
-      // LogService.instance.debug('CandlestickPainter', '拟合曲线の点が不足: ${fittedCurve.length}個');
-      return;
-    }
-
-    // LogService.instance.debug('CandlestickPainter', '拟合曲线描画開始: ${fittedCurve.length}個の点');
-
-    // 青色の滑らかな曲線で描画
-    final paint = Paint()
-      ..color = Colors.blue
-      ..strokeWidth = 2.0
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final path = Path();
-    bool isFirstPoint = true;
-    int drawnPoints = 0;
-
-    // LogService.instance.debug('CandlestickPainter', '拟合曲线描画範囲: startIndex=$startIndex, endIndex=$endIndex');
-
-    for (final point in fittedCurve) {
-      final index = point['index'] as int;
-      // // LogService.instance.debug('CandlestickPainter', '拟合曲线点: index=$index, startIndex=$startIndex, endIndex=$endIndex');
-      // 移除索引范围限制，让拟合曲线始终显示
-      // if (index < startIndex || index >= endIndex) {
-      //   skippedPoints++;
-      //   // LogService.instance.debug('CandlestickPainter', '拟合曲线点跳过: index=$index 超出范围');
-      //   continue;
-      // }
-
-      final x = _getCandleXPosition(index);
-      if (x < 0) {
-        continue;
-      }
-
-      final y = _priceToY(point['value'] as double, chartHeight);
-      final position = Offset(x, y);
-
-      if (isFirstPoint) {
-        path.moveTo(position.dx, position.dy);
-        isFirstPoint = false;
-        // LogService.instance.debug('CandlestickPainter', '拟合曲线最初の点: index=$index, x=$x, y=$y');
-      } else {
-        path.lineTo(position.dx, position.dy);
-      }
-      drawnPoints++;
-    }
-
-    // LogService.instance.debug('CandlestickPainter', '拟合曲线描画統計: 描画点=$drawnPoints個, スキップ点=$skippedPoints個');
-
-    if (drawnPoints > 0) {
-      canvas.drawPath(path, paint);
-      // LogService.instance.debug('CandlestickPainter', '拟合曲线描画完了: $drawnPoints個の点を描画');
-      } else {
-      // LogService.instance.debug('CandlestickPainter', '拟合曲线描画スキップ: 描画可能な点がありません');
-    }
-  }
-
-  /// 测试趋势线绘制（临时方法）
-  void _drawTestTrendLine(Canvas canvas) {
-    // LogService.instance.info('CandlestickPainter', '绘制测试趋势线');
-    
-    final paint = Paint()
-      ..color = Colors.purple
-      ..strokeWidth = 3.0
-      ..style = PaintingStyle.stroke;
-    
-    // 绘制一条从左上到右下的测试线
-    final startX = 100.0;
-    final startY = 100.0;
-    final endX = chartWidth - 100.0;
-    final endY = chartHeight - 100.0;
-    
-    canvas.drawLine(Offset(startX, startY), Offset(endX, endY), paint);
-  }
 
   /// 3次曲线绘制
   void _drawCubicCurve(Canvas canvas) {
