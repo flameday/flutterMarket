@@ -272,14 +272,8 @@ class CandlestickPainter extends CustomPainter {
     final int visibleCandles = endIndex - startIndex;
     if (visibleCandles <= 0) return;
 
-    // 大量データの場合は描画を制限（性能最適化）
-    const int maxDrawCandles = 2000; // 最大描画K線数（大幅削減）
-    final int effectiveVisibleCandles = visibleCandles > maxDrawCandles
-      ? maxDrawCandles
-      : visibleCandles;
-    final int startOffset = visibleCandles > maxDrawCandles
-      ? (visibleCandles - maxDrawCandles)
-      : 0;
+    // 大量データの場合の描画制限（通常キャンドル描画時のみ適用）
+    const int maxDrawCandles = 2000;
 
     final double totalWidth = candleWidth + spacing;
     
@@ -303,10 +297,17 @@ class CandlestickPainter extends CustomPainter {
         startX,
         candleDrawingWidth,
         visibleCandles,
-        startOffset,
+        0,
       );
       return;
     }
+
+    final int effectiveVisibleCandles = visibleCandles > maxDrawCandles
+      ? maxDrawCandles
+      : visibleCandles;
+    final int startOffset = visibleCandles > maxDrawCandles
+      ? (visibleCandles - maxDrawCandles)
+      : 0;
     
     // 性能最適化：早期終了条件を追加
     final double minVisibleX = -candleWidth; // 左側の描画境界

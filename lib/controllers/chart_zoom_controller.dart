@@ -181,35 +181,38 @@ mixin ChartZoomControllerMixin on ChartZoomControllerHost {
 
   void adjustViewForResize(double chartWidth) {
     if (data.isEmpty) return;
-
-    // 大量データの場合は表示範囲を制限（最後の1万件を表示）
-    const int maxDataLimit = ChartConstants.maxDataLimit;
-    if (data.length > maxDataLimit) {
-      // 最後の1万件を表示するように設定
-      endIndex = data.length;
-      startIndex = data.length - maxDataLimit;
-      // print('大量データのため最後の$maxDataLimit件を表示: $startIndex - $endIndex');
-    } else {
-      // データ数が制限以下の場合は全データを表示
-      endIndex = data.length;
-      startIndex = 0;
-    }
-
     final double candleDrawingWidth = chartWidth - emptySpaceWidth;
-    if (totalCandleWidth <= 0) {
-      if (data.length > 200) {
-        startIndex = (endIndex - 200).clamp(0, data.length);
-      } else {
-        startIndex = 0;
-      }
+    if (candleDrawingWidth <= 0 || totalCandleWidth <= 0) {
       return;
     }
 
-    final int visibleCandlesNew = (candleDrawingWidth / totalCandleWidth).floor();
-    // 表示可能なK線数が制限より少ない場合は調整
-    if (visibleCandlesNew < (endIndex - startIndex)) {
-      startIndex = (endIndex - visibleCandlesNew).clamp(0, data.length);
+    final int targetVisibleCandles =
+        (candleDrawingWidth / totalCandleWidth).floor().clamp(1, 1000000);
+
+    final int maxEmptyCandles = ((chartWidth / 2) / totalCandleWidth).floor();
+    final int maxEndIndex = data.length + maxEmptyCandles;
+
+    int newEndIndex = endIndex;
+    if (newEndIndex <= 0) {
+      newEndIndex = data.length;
     }
+    newEndIndex = newEndIndex.clamp(1, maxEndIndex);
+
+    int newStartIndex = newEndIndex - targetVisibleCandles;
+
+    if (newStartIndex < 0) {
+      newStartIndex = 0;
+      if (newEndIndex < targetVisibleCandles) {
+        newEndIndex = targetVisibleCandles.clamp(1, maxEndIndex);
+      }
+    }
+
+    if (newEndIndex <= newStartIndex) {
+      newEndIndex = (newStartIndex + 1).clamp(1, maxEndIndex);
+    }
+
+    startIndex = newStartIndex;
+    endIndex = newEndIndex;
   }
 
   void resetView(double chartWidth, {bool preserveScale = false}) {
