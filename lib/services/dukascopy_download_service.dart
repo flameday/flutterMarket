@@ -7,6 +7,40 @@ import 'timeframe_data_service.dart';
 import 'log_service.dart';
 
 class DukascopyDownloadService {
+  static String _resolveNpxCommand() {
+    const candidates = [
+      r'C:\Program Files\nodejs\npx.cmd',
+      r'C:\Program Files (x86)\nodejs\npx.cmd',
+    ];
+
+    for (final path in candidates) {
+      if (File(path).existsSync()) {
+        return path;
+      }
+    }
+
+    return 'npx';
+  }
+
+  static Map<String, String> _buildProcessEnvironment() {
+    final env = Map<String, String>.from(Platform.environment);
+    final separator = Platform.isWindows ? ';' : ':';
+    final currentPath = env['PATH'] ?? '';
+
+    const nodeDirs = [
+      r'C:\Program Files\nodejs',
+      r'C:\Program Files (x86)\nodejs',
+    ];
+
+    for (final dir in nodeDirs) {
+      if (Directory(dir).existsSync() && !currentPath.toLowerCase().contains(dir.toLowerCase())) {
+        env['PATH'] = '$dir$separator${env['PATH'] ?? ''}';
+      }
+    }
+
+    return env;
+  }
+
   /// 指定された日付と取引ペアのデータをダウンロード
   static Future<List<PriceData>> downloadDataForDate(DateTime date, TradingPair pair, Timeframe timeframe) async {
     try {
@@ -18,7 +52,7 @@ class DukascopyDownloadService {
       
       // dukascopy-nodeコマンドを実行
       final result = await Process.run(
-        'npx', // Assumes npx is in the system's PATH
+        _resolveNpxCommand(),
         [
           'dukascopy-node',
           '-i', pair.dukascopyCode,
@@ -36,6 +70,7 @@ class DukascopyDownloadService {
           '--retry-on-empty', 'true'
         ],
         workingDirectory: Directory.current.path,
+        environment: _buildProcessEnvironment(),
         runInShell: true, // Use shell to execute npx.cmd on Windows
       );
       
@@ -166,7 +201,7 @@ class DukascopyDownloadService {
       
       // dukascopy-nodeコマンドを実行（指定期間のデータを一度にダウンロード）
       final result = await Process.run(
-        'npx', // Assumes npx is in the system's PATH
+        _resolveNpxCommand(),
         [
           'dukascopy-node',
           '-i', tradingPair.dukascopyCode,
@@ -184,6 +219,7 @@ class DukascopyDownloadService {
           '--retry-on-empty', 'true'
         ],
         workingDirectory: Directory.current.path,
+        environment: _buildProcessEnvironment(),
         runInShell: true, // Use shell to execute npx.cmd on Windows
       );
       
