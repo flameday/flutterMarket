@@ -24,8 +24,8 @@ mixin ChartZoomControllerMixin on ChartZoomControllerHost {
   bool _isMousePositionZoomEnabled = false;
   /// K線幅の制限を適用したスケール値を取得
   double _clampScaleForCandleWidth(double newScale) {
-    const double minCandleWidth = 1.0; // 最小K線幅
-    const double maxCandleWidth = 50.0; // 最大K線幅
+    const double minCandleWidth = ChartConstants.minCandleWidth; // 最小K線幅
+    const double maxCandleWidth = ChartConstants.maxCandleWidth; // 最大K線幅
     
     final double minScaleForMinWidth = minCandleWidth / candleWidth;
     final double maxScaleForMaxWidth = maxCandleWidth / candleWidth;

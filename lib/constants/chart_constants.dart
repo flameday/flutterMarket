@@ -34,11 +34,11 @@ class ChartConstants {
   
   // --- チャート設定 ---
   static const double defaultCandleWidth = 4.0;
-  static const double defaultSpacing = 1.0;
+  static const double defaultSpacing = 0.2;
   static const double defaultEmptySpaceWidth = 50.0;
   static const double minScale = 0.5;
   static const double maxScale = 3.0;
-  static const double minCandleWidth = 1.0;
+  static const double minCandleWidth = 0.4;
   static const double maxCandleWidth = 50.0;
   static const double zoomRatio = 1.25;
   

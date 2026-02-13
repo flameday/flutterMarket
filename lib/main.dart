@@ -292,12 +292,25 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
 
   /// 自動更新切り替えのハンドラー
   void _handleAutoUpdateToggle() {
-    final isEnabled = _appSettings?.isAutoUpdateEnabled ?? false;
-    if (isEnabled) {
+    if (_appSettings == null) {
+      _appSettings = AppSettings.getDefault();
+    }
+
+    final currentEnabled = _appSettings?.isAutoUpdateEnabled ?? false;
+    final nextEnabled = !currentEnabled;
+
+    setState(() {
+      _appSettings = _appSettings!.copyWith(isAutoUpdateEnabled: nextEnabled);
+    });
+
+    if (nextEnabled) {
       _startAutoUpdate();
     } else {
       _stopAutoUpdate();
     }
+
+    _saveSettings();
+    Log.info('AutoUpdate', '自動更新切り替え: $currentEnabled -> $nextEnabled');
   }
 
   Future<void> _loadData() async {

@@ -116,7 +116,7 @@ class ChartControls extends StatelessWidget {
             
             // 縦線描画ボタン
             _buildControlButton(
-              icon: isVerticalLineMode ? Icons.remove : Icons.add,
+              icon: isVerticalLineMode ? Icons.remove : Icons.vertical_align_center,
               tooltip: isVerticalLineMode ? '縦線描画モードを終了' : '縦線描画モードに入る',
               onPressed: onToggleVerticalLineMode,
               color: isVerticalLineMode ? Colors.red : Colors.white,

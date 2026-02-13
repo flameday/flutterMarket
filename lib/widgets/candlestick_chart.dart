@@ -683,7 +683,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
             IconButton(
               onPressed: _toggleVerticalLineMode,
               icon: Icon(
-                _controller.isVerticalLineMode ? Icons.remove : Icons.add,
+                _controller.isVerticalLineMode ? Icons.remove : Icons.vertical_align_center,
                 color: _controller.isVerticalLineMode ? Colors.red : Colors.white,
                 size: 20,
               ),
