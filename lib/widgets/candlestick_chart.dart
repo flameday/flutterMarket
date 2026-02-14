@@ -11,6 +11,7 @@ import '../constants/chart_constants.dart';
 import '../services/log_service.dart';
 import '../services/chart_object_factory.dart';
 import '../services/chart_object_interaction_service.dart';
+import '../services/user_drawing_layer3_manager.dart';
 import 'candlestick_painter.dart';
 import 'chart_view_controller.dart';
 import 'components/bollinger_bands_settings_dialog.dart';
@@ -33,22 +34,6 @@ class _ChartGeometry {
   final double height;
 
   bool containsY(double y) => y >= 0 && y <= height;
-}
-
-class _DragUpdateContext {
-  const _DragUpdateContext({
-    required this.target,
-    required this.newIndex,
-    required this.newPrice,
-    required this.indexDelta,
-    required this.priceDelta,
-  });
-
-  final ObjectDragTarget target;
-  final int newIndex;
-  final double newPrice;
-  final int indexDelta;
-  final double priceDelta;
 }
 
 /// キャンドルスティックチャートを表示するウィジェット
@@ -177,11 +162,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
   bool _isDownloading = false; // データダウンロード中の状態フラグ
   DrawingTool _activeDrawingTool = DrawingTool.none;
   CandleAnchor? _pendingDrawingStartAnchor;
-  final List<TrendLineObject> _trendLines = [];
-  final List<CircleObject> _circleObjects = [];
-  final List<RectangleObject> _rectangleObjects = [];
-  final List<FibonacciRetracementObject> _fibonacciObjects = [];
-  final List<FreePolylineObject> _polylineObjects = [];
+  final UserDrawingLayer3Manager _layer3DrawingManager = UserDrawingLayer3Manager();
   final List<CandleAnchor> _pendingPolylinePoints = [];
   CandleAnchor? _previewAnchor;
   String? _selectedObjectId;
@@ -200,6 +181,9 @@ class _CandlestickChartState extends State<CandlestickChart> {
 
   bool get _hasSelectedObject =>
       _selectedObjectId != null && _selectedObjectType != null;
+
+  List<TrendLineObject> get _trendLines => _layer3DrawingManager.trendLines;
+  List<FreePolylineObject> get _polylineObjects => _layer3DrawingManager.polylineObjects;
 
   void _clearObjectSelection() {
     _selectedObjectId = null;
@@ -992,6 +976,11 @@ class _CandlestickChartState extends State<CandlestickChart> {
     setState(() {});
   }
 
+  void _mutateState(VoidCallback mutation) {
+    if (!mounted) return;
+    setState(mutation);
+  }
+
   /// マウスポインター押下イベントを処理（右クリックを含む）
   void _onPointerDown(PointerDownEvent event) =>
       _CandlestickChartInteractionCoordinator.onPointerDown(this, event);
@@ -1590,22 +1579,12 @@ class _CandlestickChartState extends State<CandlestickChart> {
 
   void _addDrawingObject(ChartObject object) {
     if (object is TrendLineObject) {
-      _trendLines.add(object);
+      _layer3DrawingManager.addDrawingObject(object);
       _selectedObjectId = object.id;
       _selectedObjectType = TrendLineObject;
       return;
     }
-    if (object is CircleObject) {
-      _circleObjects.add(object);
-      return;
-    }
-    if (object is RectangleObject) {
-      _rectangleObjects.add(object);
-      return;
-    }
-    if (object is FibonacciRetracementObject) {
-      _fibonacciObjects.add(object);
-    }
+    _layer3DrawingManager.addDrawingObject(object);
   }
 
   void _finishPolylineDrawing() {
@@ -1704,17 +1683,6 @@ class _CandlestickChartState extends State<CandlestickChart> {
 
   int _clampDataIndex(int index) => index.clamp(0, _maxDataIndex);
 
-  CandleAnchor _anchorAt(int index, double price) {
-    return CandleAnchor(index: _clampDataIndex(index), price: price);
-  }
-
-  CandleAnchor _translateAnchor(CandleAnchor anchor, int indexDelta, double priceDelta) {
-    return CandleAnchor(
-      index: _clampDataIndex(anchor.index + indexDelta),
-      price: anchor.price + priceDelta,
-    );
-  }
-
   void _updateDraggingObject(Offset localPosition, double chartWidth, double chartHeight) {
     final String? id = _draggingObjectId;
     final Type? objectType = _draggingObjectType;
@@ -1736,213 +1704,20 @@ class _CandlestickChartState extends State<CandlestickChart> {
     final double pricePerPixel = chartHeight <= 0.0000001 ? 0 : (priceRange / chartHeight);
     final double priceDelta = previous == null ? 0 : (-dy * pricePerPixel);
 
-    final dragContext = _DragUpdateContext(
-      target: target,
-      newIndex: newIndex,
-      newPrice: newPrice,
-      indexDelta: indexDelta,
-      priceDelta: priceDelta,
-    );
-
     setState(() {
-      if (objectType == TrendLineObject) {
-        _updateTrendLineDuringDrag(id, dragContext);
-      } else if (objectType == CircleObject) {
-        _updateCircleDuringDrag(id, dragContext);
-      } else if (objectType == RectangleObject) {
-        _updateRectangleDuringDrag(id, dragContext);
-      } else if (objectType == FibonacciRetracementObject) {
-        _updateFibonacciDuringDrag(id, dragContext);
-      } else if (objectType == FreePolylineObject) {
-        _updatePolylineDuringDrag(id, dragContext);
-      }
+      _layer3DrawingManager.updateObjectDuringDrag(
+        id: id,
+        objectType: objectType,
+        target: target,
+        newIndex: newIndex,
+        newPrice: newPrice,
+        indexDelta: indexDelta,
+        priceDelta: priceDelta,
+        clampDataIndex: _clampDataIndex,
+      );
 
       _lastDragPosition = localPosition;
     });
-  }
-
-  // --- Drag Update Pipeline (per object type) ---
-
-  void _updateTrendLineDuringDrag(
-    String id,
-    _DragUpdateContext context,
-  ) {
-    final int idx = _trendLines.indexWhere((line) => line.id == id);
-    if (idx < 0) return;
-
-    final line = _trendLines[idx];
-    if (context.target == ObjectDragTarget.start) {
-      _trendLines[idx] = _copyTrendLine(
-        line,
-        startIndex: context.newIndex,
-        startPrice: context.newPrice,
-      );
-    } else if (context.target == ObjectDragTarget.end) {
-      _trendLines[idx] = _copyTrendLine(
-        line,
-        endIndex: context.newIndex,
-        endPrice: context.newPrice,
-      );
-    } else {
-      _trendLines[idx] = _copyTrendLine(
-        line,
-        startIndex: _clampDataIndex(line.startIndex + context.indexDelta),
-        startPrice: line.startPrice + context.priceDelta,
-        endIndex: _clampDataIndex(line.endIndex + context.indexDelta),
-        endPrice: line.endPrice + context.priceDelta,
-      );
-    }
-  }
-
-  void _updateCircleDuringDrag(
-    String id,
-    _DragUpdateContext context,
-  ) {
-    final int idx = _circleObjects.indexWhere((item) => item.id == id);
-    if (idx < 0) return;
-
-    final object = _circleObjects[idx];
-    if (context.target == ObjectDragTarget.start) {
-      _circleObjects[idx] = CircleObject(
-        id: object.id,
-        start: _anchorAt(context.newIndex, context.newPrice),
-        end: object.end,
-        color: object.color,
-        width: object.width,
-        layer: object.layer,
-        visible: object.visible,
-      );
-    } else if (context.target == ObjectDragTarget.end) {
-      _circleObjects[idx] = CircleObject(
-        id: object.id,
-        start: object.start,
-        end: _anchorAt(context.newIndex, context.newPrice),
-        color: object.color,
-        width: object.width,
-        layer: object.layer,
-        visible: object.visible,
-      );
-    } else {
-      _circleObjects[idx] = CircleObject(
-        id: object.id,
-        start: _translateAnchor(object.start, context.indexDelta, context.priceDelta),
-        end: _translateAnchor(object.end, context.indexDelta, context.priceDelta),
-        color: object.color,
-        width: object.width,
-        layer: object.layer,
-        visible: object.visible,
-      );
-    }
-  }
-
-  void _updateRectangleDuringDrag(
-    String id,
-    _DragUpdateContext context,
-  ) {
-    final int idx = _rectangleObjects.indexWhere((item) => item.id == id);
-    if (idx < 0) return;
-
-    final object = _rectangleObjects[idx];
-    if (context.target == ObjectDragTarget.start) {
-      _rectangleObjects[idx] = RectangleObject(
-        id: object.id,
-        start: _anchorAt(context.newIndex, context.newPrice),
-        end: object.end,
-        color: object.color,
-        width: object.width,
-        fillAlpha: object.fillAlpha,
-        layer: object.layer,
-        visible: object.visible,
-      );
-    } else if (context.target == ObjectDragTarget.end) {
-      _rectangleObjects[idx] = RectangleObject(
-        id: object.id,
-        start: object.start,
-        end: _anchorAt(context.newIndex, context.newPrice),
-        color: object.color,
-        width: object.width,
-        fillAlpha: object.fillAlpha,
-        layer: object.layer,
-        visible: object.visible,
-      );
-    } else {
-      _rectangleObjects[idx] = RectangleObject(
-        id: object.id,
-        start: _translateAnchor(object.start, context.indexDelta, context.priceDelta),
-        end: _translateAnchor(object.end, context.indexDelta, context.priceDelta),
-        color: object.color,
-        width: object.width,
-        fillAlpha: object.fillAlpha,
-        layer: object.layer,
-        visible: object.visible,
-      );
-    }
-  }
-
-  void _updateFibonacciDuringDrag(
-    String id,
-    _DragUpdateContext context,
-  ) {
-    final int idx = _fibonacciObjects.indexWhere((item) => item.id == id);
-    if (idx < 0) return;
-
-    final object = _fibonacciObjects[idx];
-    if (context.target == ObjectDragTarget.start) {
-      _fibonacciObjects[idx] = FibonacciRetracementObject(
-        id: object.id,
-        start: _anchorAt(context.newIndex, context.newPrice),
-        end: object.end,
-        levels: object.levels,
-        color: object.color,
-        width: object.width,
-        layer: object.layer,
-        visible: object.visible,
-      );
-    } else if (context.target == ObjectDragTarget.end) {
-      _fibonacciObjects[idx] = FibonacciRetracementObject(
-        id: object.id,
-        start: object.start,
-        end: _anchorAt(context.newIndex, context.newPrice),
-        levels: object.levels,
-        color: object.color,
-        width: object.width,
-        layer: object.layer,
-        visible: object.visible,
-      );
-    } else {
-      _fibonacciObjects[idx] = FibonacciRetracementObject(
-        id: object.id,
-        start: _translateAnchor(object.start, context.indexDelta, context.priceDelta),
-        end: _translateAnchor(object.end, context.indexDelta, context.priceDelta),
-        levels: object.levels,
-        color: object.color,
-        width: object.width,
-        layer: object.layer,
-        visible: object.visible,
-      );
-    }
-  }
-
-  void _updatePolylineDuringDrag(
-    String id,
-    _DragUpdateContext context,
-  ) {
-    if (context.target != ObjectDragTarget.body) return;
-
-    final int idx = _polylineObjects.indexWhere((item) => item.id == id);
-    if (idx < 0) return;
-
-    final object = _polylineObjects[idx];
-    _polylineObjects[idx] = FreePolylineObject(
-      id: object.id,
-      points: object.points
-          .map((p) => _translateAnchor(p, context.indexDelta, context.priceDelta))
-          .toList(),
-      color: object.color,
-      width: object.width,
-      layer: object.layer,
-      visible: object.visible,
-    );
   }
 
   List<ChartObject> _buildObjectStickers() {
@@ -1966,10 +1741,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
   }
 
   void _appendLayer3UserDrawings(List<ChartObject> objects) {
-    objects.addAll(_circleObjects);
-    objects.addAll(_rectangleObjects);
-    objects.addAll(_fibonacciObjects);
-    objects.addAll(_polylineObjects);
+    _layer3DrawingManager.appendLayer3UserDrawings(objects);
   }
 
   void _appendPreviewObjects(List<ChartObject> objects) {
@@ -2055,45 +1827,16 @@ class _CandlestickChartState extends State<CandlestickChart> {
     );
   }
 
-  int? _getSelectedTrendLineIndex() {
-    final String? id = _selectedTrendLineId;
-    if (id == null) return null;
-    final int index = _trendLines.indexWhere((line) => line.id == id);
-    return index < 0 ? null : index;
-  }
-
   void _updateSelectedTrendLine(TrendLineObject Function(TrendLineObject line) updater) {
-    final int? index = _getSelectedTrendLineIndex();
-    if (index == null) return;
-    final TrendLineObject line = _trendLines[index];
+    final String? id = _selectedTrendLineId;
+    if (id == null) return;
     setState(() {
-      _trendLines[index] = updater(line);
+      _layer3DrawingManager.updateTrendLineById(id, updater);
     });
   }
 
-  bool _removeById<T extends ChartObject>(List<T> objects, String id) {
-    final int before = objects.length;
-    objects.removeWhere((object) => object.id == id);
-    return objects.length != before;
-  }
-
   bool _removeObjectByTypeAndId(Type objectType, String id) {
-    if (objectType == TrendLineObject) {
-      return _removeById(_trendLines, id);
-    }
-    if (objectType == CircleObject) {
-      return _removeById(_circleObjects, id);
-    }
-    if (objectType == RectangleObject) {
-      return _removeById(_rectangleObjects, id);
-    }
-    if (objectType == FibonacciRetracementObject) {
-      return _removeById(_fibonacciObjects, id);
-    }
-    if (objectType == FreePolylineObject) {
-      return _removeById(_polylineObjects, id);
-    }
-    return false;
+    return _layer3DrawingManager.removeByTypeAndId(objectType, id);
   }
 
   void _adjustSelectedTrendLineLength(double factor) {

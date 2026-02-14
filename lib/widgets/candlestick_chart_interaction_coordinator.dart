@@ -29,7 +29,7 @@ class _CandlestickChartInteractionCoordinator {
       return;
     }
 
-    state.setState(() {
+    state._mutateState(() {
       if (state._controller.isKlineCountMode) {
         final RenderBox renderBox = _chartRenderBox(state);
         final Offset localPosition = renderBox.globalToLocal(details.focalPoint);
@@ -57,7 +57,7 @@ class _CandlestickChartInteractionCoordinator {
 
   static void onScaleEnd(_CandlestickChartState state, ScaleEndDetails details) {
     if (state._draggingObjectId != null) {
-      state.setState(() {
+      state._mutateState(() {
         _clearDraggingSession(state);
       });
       return;
@@ -114,7 +114,7 @@ class _CandlestickChartInteractionCoordinator {
     final dragHit = state._hitTestObject(localPosition.dx, localPosition.dy, chartWidth, chartHeight);
     if (dragHit == null) return false;
 
-    state.setState(() {
+    state._mutateState(() {
       state._applyObjectSelectionHit(dragHit);
       state._draggingObjectId = dragHit.objectId;
       state._draggingObjectType = dragHit.objectType;
@@ -132,18 +132,18 @@ class _CandlestickChartInteractionCoordinator {
     if (state._controller.selectedKlineCount > 0) {
       _saveKlineSelectionAndExit(state, chartWidth);
     } else {
-      state.setState(() {
+      state._mutateState(() {
         _exitKlineCountMode(state);
       });
     }
 
-    state.setState(() {});
+    state._mutateState(() {});
   }
 
   static void _saveKlineSelectionAndExit(_CandlestickChartState state, double chartWidth) {
     state._controller.saveCurrentSelection(chartWidth).then((success) {
       if (success) {
-        state.setState(() {
+        state._mutateState(() {
           _exitKlineCountMode(state);
         });
       }
