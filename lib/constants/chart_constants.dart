@@ -43,8 +43,8 @@ class ChartConstants {
   static const double zoomRatio = 1.25;
   
   // --- 性能設定 ---
-  static const int maxDataLimit = 10000;
-  static const int maxDrawCandles = 2000;
+  static const int maxDataLimit = 100000;
+  static const int maxDrawCandles = 200000;
   static const int maxGridLines = 6;
   static const int maxTimeGridLines = 8;
   static const int maxPriceLabels = 4;

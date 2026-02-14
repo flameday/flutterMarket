@@ -118,6 +118,10 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
 
   // データフロー最適化：自動更新タイマーをここに移動
   Timer? _autoUpdateTimer;
+  Timer? _fileReloadDebounceTimer;
+  bool _isReloadingData = false;
+  bool _hasPendingReload = false;
+  String _lastDataSignature = '';
 
   @override
   void initState() {
@@ -164,7 +168,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
       _selectedTimeframe = _appSettings!.defaultTimeframe;
     }
     
-    _loadData();
+    await _loadData(showLoading: true, skipIfUnchanged: false);
     _initializeFileWatcher();
     _initializeAutoUpdate(); // 自動更新を初期化
   }
@@ -235,7 +239,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
       
       // 下载完成后，重新加载数据
       Log.info('AutoUpdate', '下载完成，重新加载数据...');
-      await _loadData();
+      await _requestSmoothReload(reason: 'auto-update');
       
       Log.info('AutoUpdate', '自動更新完了');
     } catch (e) {
@@ -280,7 +284,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
       await _performDataDownload();
       
       Log.info('Main', '下载完成，重新加载数据...');
-      await _loadData();
+      await _requestSmoothReload(reason: 'manual-download');
       
       Log.info('Main', '手动下载完成');
     } catch (e) {
@@ -292,9 +296,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
 
   /// 自動更新切り替えのハンドラー
   void _handleAutoUpdateToggle() {
-    if (_appSettings == null) {
-      _appSettings = AppSettings.getDefault();
-    }
+    _appSettings ??= AppSettings.getDefault();
 
     final currentEnabled = _appSettings?.isAutoUpdateEnabled ?? false;
     final nextEnabled = !currentEnabled;
@@ -313,60 +315,108 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
     Log.info('AutoUpdate', '自動更新切り替え: $currentEnabled -> $nextEnabled');
   }
 
-  Future<void> _loadData() async {
+  String _buildDataSignature(List<PriceData> data) {
+    if (data.isEmpty) return 'empty';
+    final int firstTs = data.first.timestamp;
+    final int lastTs = data.last.timestamp;
+    return '${data.length}|$firstTs|$lastTs';
+  }
+
+  Future<void> _requestSmoothReload({required String reason}) async {
+    _fileReloadDebounceTimer?.cancel();
+    final completer = Completer<void>();
+
+    _fileReloadDebounceTimer = Timer(const Duration(milliseconds: 350), () async {
+      if (_isReloadingData) {
+        _hasPendingReload = true;
+        if (!completer.isCompleted) completer.complete();
+        return;
+      }
+
+      _isReloadingData = true;
+      try {
+        await _loadData(showLoading: false, skipIfUnchanged: true);
+      } finally {
+        _isReloadingData = false;
+        if (_hasPendingReload) {
+          _hasPendingReload = false;
+          unawaited(_requestSmoothReload(reason: '$reason-queued'));
+        }
+      }
+
+      if (!completer.isCompleted) completer.complete();
+    });
+
+    return completer.future;
+  }
+
+  Future<bool> _loadData({bool showLoading = true, bool skipIfUnchanged = false}) async {
     try {
-      setState(() {
-        _isLoading = true;
-        _errorMessage = null;
-      });
+      final bool showBlockingLoading = showLoading && _priceData.isEmpty;
+      if (showBlockingLoading && mounted) {
+        setState(() {
+          _isLoading = true;
+          _errorMessage = null;
+        });
+      }
 
       // 選択された時間周期に基づいてデータを読み込み
-      final data = await TimeframeDataService.loadDataForTimeframe(
+      List<PriceData> loadedData = await TimeframeDataService.loadDataForTimeframe(
         _selectedTimeframe, 
         tradingPair: _selectedTradingPair,
         klineDataLimit: _appSettings?.klineDataLimit,
       );
 
       // データがない場合は、2015年1月1日から自動的にダウンロード
-      if (data.isEmpty) {
+      if (loadedData.isEmpty) {
         Log.info('DataLoad', '${_selectedTradingPair.displayName} ${_selectedTimeframe.displayName}データが見つからない、2015年1月1日から自動ダウンロードを開始...');
         await _autoDownloadFrom2015();
         
         // データを再度読み込んでみて
-        final newData = await TimeframeDataService.loadDataForTimeframe(
+        loadedData = await TimeframeDataService.loadDataForTimeframe(
           _selectedTimeframe, 
           tradingPair: _selectedTradingPair,
           klineDataLimit: _appSettings?.klineDataLimit,
         );
-        setState(() {
-          _priceData = newData;
-          _isLoading = false;
-        });
-        
-        Log.info('DataLoad', '${_selectedTradingPair.displayName} ${_selectedTimeframe.displayName}自動ダウンロード後のデータ読み込み完了: ${newData.length}件');
-        if (newData.isNotEmpty) {
-          final firstTime = DateTime.fromMillisecondsSinceEpoch(newData.first.timestamp, isUtc: true);
-          final lastTime = DateTime.fromMillisecondsSinceEpoch(newData.last.timestamp, isUtc: true);
+      }
+
+      final String newSignature = _buildDataSignature(loadedData);
+      final bool changed = newSignature != _lastDataSignature;
+
+      if (mounted) {
+        final bool shouldApply = changed || !skipIfUnchanged || _errorMessage != null || _isLoading;
+        if (shouldApply) {
+          setState(() {
+            if (changed || !skipIfUnchanged) {
+              _priceData = loadedData;
+            }
+            _isLoading = false;
+            _errorMessage = null;
+          });
+        }
+      }
+
+      if (changed) {
+        _lastDataSignature = newSignature;
+        Log.info('DataLoad', '${_selectedTradingPair.displayName} ${_selectedTimeframe.displayName}データ更新: ${loadedData.length}件');
+        if (loadedData.isNotEmpty) {
+          final firstTime = DateTime.fromMillisecondsSinceEpoch(loadedData.first.timestamp, isUtc: true);
+          final lastTime = DateTime.fromMillisecondsSinceEpoch(loadedData.last.timestamp, isUtc: true);
           Log.info('DataLoad', 'データ範囲: ${firstTime.toString()} ～ ${lastTime.toString()}');
         }
       } else {
-      setState(() {
-        _priceData = data;
-        _isLoading = false;
-      });
-      
-        Log.info('DataLoad', '${_selectedTradingPair.displayName} ${_selectedTimeframe.displayName}データの読み込み完了: ${data.length}件');
-      if (data.isNotEmpty) {
-        final firstTime = DateTime.fromMillisecondsSinceEpoch(data.first.timestamp, isUtc: true);
-        final lastTime = DateTime.fromMillisecondsSinceEpoch(data.last.timestamp, isUtc: true);
-          Log.info('DataLoad', 'データ範囲: ${firstTime.toString()} ～ ${lastTime.toString()}');
-        }
+        Log.info('DataLoad', 'データ更新なし、UI再描画をスキップ');
       }
+
+      return changed;
     } catch (e) {
-      setState(() {
-        _errorMessage = 'データの読み込みに失敗しました: $e';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _errorMessage = 'データの読み込みに失敗しました: $e';
+          _isLoading = false;
+        });
+      }
+      return false;
     }
   }
 
@@ -417,8 +467,8 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
     
     // ファイル変更を監視
     _fileChangeSubscription = _fileWatcher!.onFileChanged.listen((_) {
-      Log.info('FileWatcher', '${_selectedTradingPair.displayName} ${_selectedTimeframe.displayName}CSVファイルの変更を検出、検証してデータを再読み込み...');
-      _validateAndReloadData();
+      Log.info('FileWatcher', '${_selectedTradingPair.displayName} ${_selectedTimeframe.displayName}CSV変更を検出、静默增量刷新を予約');
+      unawaited(_requestSmoothReload(reason: 'file-change'));
     });
     
     // 監視を開始
@@ -436,39 +486,12 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
     _initializeFileWatcher();
   }
 
-  /// データの検証と再読み込み
-  void _validateAndReloadData() async {
-    try {
-      // 現在のデータ量を記録
-      final currentDataCount = _priceData.length;
-      Log.info('DataValidation', '現在のデータ量: $currentDataCount');
-      
-      // データを再読み込み
-      await _loadData();
-      
-      // 新しいデータがあるかチェック
-      if (_priceData.length > currentDataCount) {
-        final newDataCount = _priceData.length - currentDataCount;
-        Log.info('DataValidation', '新しいデータを検出: $newDataCount件、総データ量: ${_priceData.length}件');
-        
-        // 通知を表示
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: SelectableText('新しいデータを検出: $newDataCount件'),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      } else if (_priceData.length == currentDataCount) {
-        Log.info('DataValidation', 'データ量に変化なし、ファイル内容の更新の可能性');
-      } else {
-        Log.warning('DataValidation', 'データ量が減少、ファイルが置き換えられた可能性');
-      }
-    } catch (e) {
-      Log.error('DataValidation', 'データ検証中にエラー: $e');
-    }
+  /// 互換用: 旧ファイル監視コールバックが参照するメソッド
+  ///
+  /// Hot Reload後も既存の購読コールバックがこのシンボルを呼び出す可能性があるため、
+  /// 新しい平滑リロード処理へ委譲するラッパーとして残す。
+  void _validateAndReloadData() {
+    unawaited(_requestSmoothReload(reason: 'legacy-validate-reload'));
   }
 
   @override
@@ -476,6 +499,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
     // ファイル監視器をクリーンアップ
     _fileChangeSubscription?.cancel();
     _stopAutoUpdate(); // 自動更新タイマーを停止
+    _fileReloadDebounceTimer?.cancel();
     _fileWatcher?.stopWatching();
     super.dispose();
   }
@@ -1811,6 +1835,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
             onDataUpdate: (List<PriceData> updatedData) {
               setState(() {
                 _priceData = updatedData;
+                _lastDataSignature = _buildDataSignature(updatedData);
                 Log.info('DataUpdate', 'main.dartでデータが更新されました: ${updatedData.length}件');
               });
             },
@@ -1832,7 +1857,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
 
 
   Widget _buildBody() {
-    if (_isLoading) {
+    if (_isLoading && _priceData.isEmpty) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1845,7 +1870,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
       );
     }
 
-    if (_errorMessage != null) {
+    if (_errorMessage != null && _priceData.isEmpty) {
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

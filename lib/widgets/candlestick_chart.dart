@@ -345,7 +345,8 @@ class _CandlestickChartState extends State<CandlestickChart> {
     super.didUpdateWidget(oldWidget);
     
     // データが更新された場合、コントローラーのデータも更新
-    if (widget.data != oldWidget.data) {
+    if (_didDataSnapshotChange(oldWidget.data, widget.data)) {
+      _controller.recordCurrentViewState();
       _controller.updateData(widget.data);
     }
     
@@ -418,10 +419,16 @@ class _CandlestickChartState extends State<CandlestickChart> {
     }
   }
 
+  bool _didDataSnapshotChange(List<PriceData> previous, List<PriceData> next) {
+    if (identical(previous, next)) return false;
+    if (previous.length != next.length) return true;
+    if (next.isEmpty) return false;
+    if (previous.first.timestamp != next.first.timestamp) return true;
+    return previous.last.timestamp != next.last.timestamp;
+  }
+
   @override
   Widget build(BuildContext context) {
-    _controller.recordCurrentViewState();
-
     // LogService.instance.debug('CandlestickChart', 'build開始: filteredWavePoints=${_controller.filteredWavePoints != null ? "存在" : "null"}');
     // LogService.instance.debug('CandlestickChart', 'isTrendFilteringEnabled=${widget.isTrendFilteringEnabled}');
     // LogService.instance.debug('CandlestickChart', 'controller.isTrendFilteringEnabled=${_controller.isTrendFilteringEnabled}');

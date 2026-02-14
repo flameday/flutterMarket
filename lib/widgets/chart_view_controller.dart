@@ -212,6 +212,11 @@ class ChartViewController extends _ChartControllerBase
 
   /// データを更新する（デフォルトで現在の表示位置と縮尺を維持）
   void updateData(List<PriceData> newData, {bool preserveView = true}) {
+    if (!_didDataSnapshotChange(data, newData)) {
+      data = newData;
+      return;
+    }
+
     final double baseScale = _recordedScale ?? scale;
     final int baseStartIndex = _recordedStartIndex ?? startIndex;
     final int baseEndIndex = _recordedEndIndex ?? endIndex;
@@ -220,7 +225,8 @@ class ChartViewController extends _ChartControllerBase
     final int oldStartIndex = baseStartIndex;
     final int oldEndIndex = baseEndIndex;
     final int oldVisibleCandles = (oldEndIndex - oldStartIndex).clamp(1, 1000000);
-    final bool wasFollowingLatest = oldEndIndex >= oldLength;
+    final int? anchorStartTimestamp =
+      (oldStartIndex >= 0 && oldStartIndex < oldLength) ? data[oldStartIndex].timestamp : null;
 
     data = newData;
 
@@ -253,27 +259,23 @@ class ChartViewController extends _ChartControllerBase
     // 保持缩放比例
     scale = baseScale;
 
-    // 静默更新：保持当前窗口；若原本跟随最新K线，则继续跟随最新
-    int newStartIndex = oldStartIndex;
-    int newEndIndex = oldEndIndex;
-    final int lengthDelta = data.length - oldLength;
-
-    if (wasFollowingLatest && lengthDelta != 0) {
-      newStartIndex += lengthDelta;
-      newEndIndex += lengthDelta;
+    // 時間戳アンカー方式：刷新時は「現在表示起点の時間」を優先して維持
+    int newStartIndex;
+    if (anchorStartTimestamp != null) {
+      newStartIndex = _findNearestIndexAtOrAfterTimestamp(anchorStartTimestamp);
+    } else {
+      newStartIndex = oldStartIndex.clamp(0, data.length - 1);
     }
 
-    if (newEndIndex <= 0) {
+    int newEndIndex = newStartIndex + oldVisibleCandles;
+
+    if (newEndIndex > data.length) {
       newEndIndex = data.length;
+      newStartIndex = (newEndIndex - oldVisibleCandles).clamp(0, data.length - 1);
     }
 
     if (newStartIndex < 0) {
       newStartIndex = 0;
-    }
-
-    if (newStartIndex >= data.length) {
-      newEndIndex = data.length;
-      newStartIndex = (newEndIndex - oldVisibleCandles).clamp(0, data.length - 1);
     }
 
     if (newEndIndex <= newStartIndex) {
@@ -285,6 +287,35 @@ class ChartViewController extends _ChartControllerBase
 
     // 更新一次记录，供下一次重绘/刷新使用
     recordCurrentViewState();
+  }
+
+  int _findNearestIndexAtOrAfterTimestamp(int timestamp) {
+    if (data.isEmpty) return 0;
+
+    int left = 0;
+    int right = data.length;
+
+    while (left < right) {
+      final int mid = left + ((right - left) >> 1);
+      if (data[mid].timestamp < timestamp) {
+        left = mid + 1;
+      } else {
+        right = mid;
+      }
+    }
+
+    if (left >= data.length) {
+      return data.length - 1;
+    }
+    return left;
+  }
+
+  bool _didDataSnapshotChange(List<PriceData> previous, List<PriceData> next) {
+    if (identical(previous, next)) return false;
+    if (previous.length != next.length) return true;
+    if (next.isEmpty) return false;
+    if (previous.first.timestamp != next.first.timestamp) return true;
+    return previous.last.timestamp != next.last.timestamp;
   }
 
   @override
