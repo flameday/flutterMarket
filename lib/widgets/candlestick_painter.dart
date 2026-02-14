@@ -12,9 +12,10 @@ import 'painters/chart_object_renderer.dart';
 
 /// キャンドルスティックチャートを描画するカスタムPainter
 ///
-/// 渲染逻辑只分两类：
-/// 1) K线背景板（坐标系、K线、指标、标签）
-/// 2) Object贴层（线段/形状/选区等叠加对象）
+/// 渲染业务分三层：
+/// 1) K线层（坐标系、网格、K线本体）
+/// 2) 指标层（均线、波浪高低点、布林及其关联对象）
+/// 3) 用户手绘层（斜线/图形/选区等交互对象）
 class CandlestickPainter extends CustomPainter {
   final List<PriceData> data;
   final double candleWidth;
@@ -131,7 +132,7 @@ class CandlestickPainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
 
     // ==========================
-    // 1) K线背景板（Board）
+    // 1) K线层（Board）
     // ==========================
 
     // グリッド線を描画
@@ -148,7 +149,7 @@ class CandlestickPainter extends CustomPainter {
     _drawMovingAverages(canvas, size);
 
     // ==========================
-    // 2) Object贴层（Stickers）
+    // 2) 指标层（Indicators）
     // ==========================
     _drawChartObjectsByLayer(canvas, size, ChartObjectLayer.aboveIndicators);
 
@@ -207,6 +208,9 @@ class CandlestickPainter extends CustomPainter {
       );
     }
 
+    // ==========================
+    // 3) 用户手绘层（User Drawings）
+    // ==========================
     _drawChartObjectsByLayer(canvas, size, ChartObjectLayer.interaction);
 
     // 性能監視：描画完了時間
@@ -273,7 +277,7 @@ class CandlestickPainter extends CustomPainter {
     if (visibleCandles <= 0) return;
 
     // 大量データの場合の描画制限（通常キャンドル描画時のみ適用）
-    const int maxDrawCandles = 2000;
+    const int maxDrawCandles = 200000;
 
     final double totalWidth = candleWidth + spacing;
     

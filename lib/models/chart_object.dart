@@ -225,3 +225,54 @@ class FittedCurveObject extends ChartObject {
   final String color;
   final double width;
 }
+
+class CircleObject extends ChartObject {
+  const CircleObject({
+    required super.id,
+    required this.start,
+    required this.end,
+    this.color = '#00BCD4',
+    this.width = 2.0,
+    super.layer = ChartObjectLayer.aboveIndicators,
+    super.visible = true,
+  });
+
+  final CandleAnchor start;
+  final CandleAnchor end;
+  final String color;
+  final double width;
+}
+
+class RectangleObject extends ChartObject {
+  const RectangleObject({
+    required super.id,
+    required this.start,
+    required this.end,
+    this.color = '#03A9F4',
+    this.width = 2.0,
+    this.fillAlpha = 0.12,
+    super.layer = ChartObjectLayer.aboveIndicators,
+    super.visible = true,
+  });
+
+  final CandleAnchor start;
+  final CandleAnchor end;
+  final String color;
+  final double width;
+  final double fillAlpha;
+}
+
+class FreePolylineObject extends ChartObject {
+  const FreePolylineObject({
+    required super.id,
+    required this.points,
+    this.color = '#FFC107',
+    this.width = 2.0,
+    super.layer = ChartObjectLayer.aboveIndicators,
+    super.visible = true,
+  });
+
+  final List<CandleAnchor> points;
+  final String color;
+  final double width;
+}

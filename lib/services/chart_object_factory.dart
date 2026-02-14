@@ -1,5 +1,4 @@
 import '../models/chart_object.dart';
-import '../models/trend_line.dart';
 import '../widgets/chart_view_controller.dart';
 
 class ChartObjectFactory {
@@ -7,41 +6,35 @@ class ChartObjectFactory {
 
   static List<ChartObject> build({
     required ChartViewController controller,
-    List<TrendLine> trendLines = const [],
+    List<TrendLineObject> trendLines = const [],
     String? selectedTrendLineId,
     bool includeTrendFiltering = false,
     bool includeFibonacciForSelectedTrendLine = false,
   }) {
     final objects = <ChartObject>[];
 
-    for (final line in controller.getVisibleVerticalLines()) {
-      objects.add(
-        VerticalLineObject(
-          id: line.id,
-          timestamp: line.timestamp,
-          color: line.color,
-          width: line.width,
-          layer: ChartObjectLayer.aboveIndicators,
-        ),
-      );
-    }
+    _appendLayer2IndicatorObjects(
+      objects,
+      controller: controller,
+      includeTrendFiltering: includeTrendFiltering,
+    );
 
-    for (final line in trendLines) {
-      objects.add(
-        TrendLineObject(
-          id: line.id,
-          startIndex: line.startIndex,
-          startPrice: line.startPrice,
-          endIndex: line.endIndex,
-          endPrice: line.endPrice,
-          color: line.color,
-          width: line.width,
-          selected: selectedTrendLineId == line.id,
-          layer: ChartObjectLayer.aboveIndicators,
-        ),
-      );
-    }
+    _appendLayer3UserInteractionObjects(
+      objects,
+      controller: controller,
+      trendLines: trendLines,
+      selectedTrendLineId: selectedTrendLineId,
+      includeFibonacciForSelectedTrendLine: includeFibonacciForSelectedTrendLine,
+    );
 
+    return objects;
+  }
+
+  static void _appendLayer2IndicatorObjects(
+    List<ChartObject> objects, {
+    required ChartViewController controller,
+    required bool includeTrendFiltering,
+  }) {
     final mergedWavePoints = controller.getMergedWavePoints();
     if (controller.isWavePointsVisible && mergedWavePoints.isNotEmpty) {
       for (int i = 0; i < mergedWavePoints.length; i++) {
@@ -90,26 +83,6 @@ class ChartObjectFactory {
           layer: ChartObjectLayer.aboveIndicators,
         ),
       );
-    }
-
-    if (includeFibonacciForSelectedTrendLine && selectedTrendLineId != null) {
-      TrendLine? selected;
-      for (final line in trendLines) {
-        if (line.id == selectedTrendLineId) {
-          selected = line;
-          break;
-        }
-      }
-      if (selected != null) {
-        objects.add(
-          FibonacciRetracementObject(
-            id: 'fib-${selected.id}',
-            start: CandleAnchor(index: selected.startIndex, price: selected.startPrice),
-            end: CandleAnchor(index: selected.endIndex, price: selected.endPrice),
-            layer: ChartObjectLayer.aboveIndicators,
-          ),
-        );
-      }
     }
 
     if (includeTrendFiltering) {
@@ -212,6 +185,62 @@ class ChartObjectFactory {
         }
       }
     }
+  }
+
+  static void _appendLayer3UserInteractionObjects(
+    List<ChartObject> objects, {
+    required ChartViewController controller,
+    required List<TrendLineObject> trendLines,
+    required String? selectedTrendLineId,
+    required bool includeFibonacciForSelectedTrendLine,
+  }) {
+    for (final line in controller.getVisibleVerticalLines()) {
+      objects.add(
+        VerticalLineObject(
+          id: line.id,
+          timestamp: line.timestamp,
+          color: line.color,
+          width: line.width,
+          layer: ChartObjectLayer.interaction,
+        ),
+      );
+    }
+
+    for (final line in trendLines) {
+      objects.add(
+        TrendLineObject(
+          id: line.id,
+          startIndex: line.startIndex,
+          startPrice: line.startPrice,
+          endIndex: line.endIndex,
+          endPrice: line.endPrice,
+          color: line.color,
+          width: line.width,
+          selected: selectedTrendLineId == line.id,
+          layer: line.layer,
+        ),
+      );
+    }
+
+    if (includeFibonacciForSelectedTrendLine && selectedTrendLineId != null) {
+      TrendLineObject? selected;
+      for (final line in trendLines) {
+        if (line.id == selectedTrendLineId) {
+          selected = line;
+          break;
+        }
+      }
+      if (selected != null) {
+        objects.add(
+          FibonacciRetracementObject(
+            id: 'fib-${selected.id}',
+            start: CandleAnchor(index: selected.startIndex, price: selected.startPrice),
+            end: CandleAnchor(index: selected.endIndex, price: selected.endPrice),
+            layer: ChartObjectLayer.interaction,
+          ),
+        );
+      }
+    }
 
     for (final selection in controller.getVisibleKlineSelections()) {
       objects.add(
@@ -238,8 +267,6 @@ class ChartObjectFactory {
         ),
       );
     }
-
-    return objects;
   }
 
   static (String, double) _trendLineStyle(String strengthLevel, String type) {

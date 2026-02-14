@@ -577,6 +577,89 @@ class FittedCurveObjectRenderer extends ChartObjectRenderer<FittedCurveObject> {
   }
 }
 
+class CircleObjectRenderer extends ChartObjectRenderer<CircleObject> {
+  const CircleObjectRenderer();
+
+  @override
+  void render(ChartObjectRenderContext context, CircleObject object) {
+    final x1 = context.candleXByIndex(object.start.index);
+    final y1 = context.priceToY(object.start.price);
+    final x2 = context.candleXByIndex(object.end.index);
+    final y2 = context.priceToY(object.end.price);
+
+    final center = Offset((x1 + x2) / 2, (y1 + y2) / 2);
+    final radius = ((x2 - x1).abs() + (y2 - y1).abs()) / 4;
+    if (radius <= 0.5) return;
+
+    final paint = Paint()
+      ..color = context.parseHexColor(object.color, Colors.cyan)
+      ..strokeWidth = object.width
+      ..style = PaintingStyle.stroke;
+
+    context.canvas.drawCircle(center, radius, paint);
+  }
+}
+
+class RectangleObjectRenderer extends ChartObjectRenderer<RectangleObject> {
+  const RectangleObjectRenderer();
+
+  @override
+  void render(ChartObjectRenderContext context, RectangleObject object) {
+    final x1 = context.candleXByIndex(object.start.index);
+    final y1 = context.priceToY(object.start.price);
+    final x2 = context.candleXByIndex(object.end.index);
+    final y2 = context.priceToY(object.end.price);
+
+    final rect = Rect.fromPoints(Offset(x1, y1), Offset(x2, y2));
+    if (rect.width <= 0.5 || rect.height <= 0.5) return;
+
+    final baseColor = context.parseHexColor(object.color, Colors.lightBlue);
+    final fillPaint = Paint()
+      ..color = baseColor.withValues(alpha: object.fillAlpha)
+      ..style = PaintingStyle.fill;
+    final strokePaint = Paint()
+      ..color = baseColor
+      ..strokeWidth = object.width
+      ..style = PaintingStyle.stroke;
+
+    context.canvas.drawRect(rect, fillPaint);
+    context.canvas.drawRect(rect, strokePaint);
+  }
+}
+
+class FreePolylineObjectRenderer extends ChartObjectRenderer<FreePolylineObject> {
+  const FreePolylineObjectRenderer();
+
+  @override
+  void render(ChartObjectRenderContext context, FreePolylineObject object) {
+    if (object.points.length < 2) return;
+
+    final paint = Paint()
+      ..color = context.parseHexColor(object.color, Colors.amber)
+      ..strokeWidth = object.width
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final path = Path();
+    var first = true;
+    for (final point in object.points) {
+      final x = context.candleXByIndex(point.index);
+      final y = context.priceToY(point.price);
+      if (first) {
+        path.moveTo(x, y);
+        first = false;
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+
+    if (!first) {
+      context.canvas.drawPath(path, paint);
+    }
+  }
+}
+
 class ChartObjectRendererRegistry {
   ChartObjectRendererRegistry({
     List<ChartObjectRenderer<dynamic>>? renderers,
@@ -595,6 +678,9 @@ class ChartObjectRendererRegistry {
               TrendAnalysisLineObjectRenderer(),
               SmoothTrendPolylineObjectRenderer(),
               FittedCurveObjectRenderer(),
+              CircleObjectRenderer(),
+              RectangleObjectRenderer(),
+              FreePolylineObjectRenderer(),
             ];
 
   final List<ChartObjectRenderer<dynamic>> _renderers;

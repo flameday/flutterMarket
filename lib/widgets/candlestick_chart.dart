@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import '../models/price_data.dart';
 import '../models/timeframe.dart';
 import '../models/trading_pair.dart';
-import '../models/trend_line.dart';
 import '../models/chart_object.dart';
 import '../constants/chart_constants.dart';
 import '../services/log_service.dart';
@@ -15,6 +14,42 @@ import '../services/chart_object_interaction_service.dart';
 import 'candlestick_painter.dart';
 import 'chart_view_controller.dart';
 import 'components/bollinger_bands_settings_dialog.dart';
+
+part 'candlestick_chart_interaction_coordinator.dart';
+
+enum DrawingTool {
+  none,
+  trendLine,
+  circle,
+  rectangle,
+  fibonacci,
+  polyline,
+}
+
+class _ChartGeometry {
+  const _ChartGeometry({required this.width, required this.height});
+
+  final double width;
+  final double height;
+
+  bool containsY(double y) => y >= 0 && y <= height;
+}
+
+class _DragUpdateContext {
+  const _DragUpdateContext({
+    required this.target,
+    required this.newIndex,
+    required this.newPrice,
+    required this.indexDelta,
+    required this.priceDelta,
+  });
+
+  final ObjectDragTarget target;
+  final int newIndex;
+  final double newPrice;
+  final int indexDelta;
+  final double priceDelta;
+}
 
 /// キャンドルスティックチャートを表示するウィジェット
 class CandlestickChart extends StatefulWidget {
@@ -126,6 +161,13 @@ class CandlestickChart extends StatefulWidget {
 }
 
 class _CandlestickChartState extends State<CandlestickChart> {
+  // Architecture map:
+  // 1) Lifecycle & widget sync
+  // 2) Interaction input pipeline (tap/hover/scale/pointer)
+  // 3) Drawing session & object CRUD
+  // 4) Drag update pipeline
+  // 5) Object build/preview pipeline
+  // 6) View/utility operations
   late final ChartViewController _controller;
   double _lastWidth = 0.0;
   Offset? _crosshairPosition;
@@ -133,18 +175,75 @@ class _CandlestickChartState extends State<CandlestickChart> {
   double? _hoveredPrice;
   bool _isRightClickDeleting = false; // 右クリック削除処理中フラグ
   bool _isDownloading = false; // データダウンロード中の状態フラグ
-  bool _isTrendLineMode = false;
-  int? _pendingTrendLineStartIndex;
-  double? _pendingTrendLineStartPrice;
-  final List<TrendLine> _trendLines = [];
-  String? _selectedTrendLineId;
-  String? _draggingTrendLineId;
-  ObjectDragTarget? _draggingTrendTarget;
+  DrawingTool _activeDrawingTool = DrawingTool.none;
+  CandleAnchor? _pendingDrawingStartAnchor;
+  final List<TrendLineObject> _trendLines = [];
+  final List<CircleObject> _circleObjects = [];
+  final List<RectangleObject> _rectangleObjects = [];
+  final List<FibonacciRetracementObject> _fibonacciObjects = [];
+  final List<FreePolylineObject> _polylineObjects = [];
+  final List<CandleAnchor> _pendingPolylinePoints = [];
+  CandleAnchor? _previewAnchor;
+  String? _selectedObjectId;
+  Type? _selectedObjectType;
+  String? _draggingObjectId;
+  Type? _draggingObjectType;
+  ObjectDragTarget? _draggingObjectTarget;
   Offset? _lastDragPosition;
   
   // ダブルクリック検出用
   DateTime? _lastTapTime;
   Offset? _lastTapPosition;
+
+  String? get _selectedTrendLineId =>
+      _selectedObjectType == TrendLineObject ? _selectedObjectId : null;
+
+  bool get _hasSelectedObject =>
+      _selectedObjectId != null && _selectedObjectType != null;
+
+  void _clearObjectSelection() {
+    _selectedObjectId = null;
+    _selectedObjectType = null;
+  }
+
+  void _clearPendingDrawingStart() {
+    _pendingDrawingStartAnchor = null;
+  }
+
+  void _applyObjectSelectionHit(ObjectHitResult hit) {
+    _selectedObjectId = hit.objectId;
+    _selectedObjectType = hit.objectType;
+    _clearPendingDrawingStart();
+  }
+
+  void _resetDrawingSession({
+    bool clearTool = false,
+    bool clearPendingStart = true,
+    bool clearPolylineDraft = true,
+    bool clearPreview = true,
+  }) {
+    if (clearTool) {
+      _activeDrawingTool = DrawingTool.none;
+    }
+    if (clearPendingStart) {
+      _clearPendingDrawingStart();
+    }
+    if (clearPolylineDraft) {
+      _pendingPolylinePoints.clear();
+    }
+    if (clearPreview) {
+      _previewAnchor = null;
+    }
+  }
+
+  void _completeSingleDrawCycle() {
+    _resetDrawingSession(
+      clearTool: true,
+      clearPendingStart: true,
+      clearPolylineDraft: true,
+      clearPreview: true,
+    );
+  }
 
   @override
   void initState() {
@@ -692,17 +791,38 @@ class _CandlestickChartState extends State<CandlestickChart> {
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             ),
 
-            IconButton(
-              onPressed: _toggleTrendLineMode,
-              icon: Icon(
-                _isTrendLineMode ? Icons.remove : Icons.show_chart,
-                color: _isTrendLineMode ? Colors.red : Colors.white,
+            PopupMenuButton<DrawingTool>(
+              tooltip: '绘制面板',
+              onSelected: _setDrawingTool,
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: DrawingTool.none, child: Text('关闭绘制')),
+                PopupMenuItem(value: DrawingTool.trendLine, child: Text('斜线')),
+                PopupMenuItem(value: DrawingTool.circle, child: Text('圆圈')),
+                PopupMenuItem(value: DrawingTool.rectangle, child: Text('长方形')),
+                PopupMenuItem(value: DrawingTool.fibonacci, child: Text('斐波那契')),
+                PopupMenuItem(value: DrawingTool.polyline, child: Text('折线图')),
+              ],
+              child: Icon(
+                Icons.draw,
+                color: _activeDrawingTool == DrawingTool.none ? Colors.white : Colors.greenAccent,
                 size: 20,
               ),
-              tooltip: _isTrendLineMode ? '斜線描画モードを終了' : '斜線描画モードに入る',
-              padding: const EdgeInsets.all(4),
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             ),
+
+            if (_activeDrawingTool != DrawingTool.none)
+              SelectableText(
+                '绘制:${_drawingToolLabel(_activeDrawingTool)}',
+                style: TextStyle(color: Colors.greenAccent, fontSize: 10),
+              ),
+
+            if (_activeDrawingTool == DrawingTool.polyline && _pendingPolylinePoints.length >= 2)
+              IconButton(
+                onPressed: _finishPolylineDrawing,
+                icon: const Icon(Icons.check, color: Colors.greenAccent, size: 20),
+                tooltip: '完成折线',
+                padding: const EdgeInsets.all(4),
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              ),
 
             if (_selectedTrendLineId != null) ...[
               IconButton(
@@ -733,14 +853,16 @@ class _CandlestickChartState extends State<CandlestickChart> {
                 padding: const EdgeInsets.all(4),
                 constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               ),
+            ],
+
+            if (_hasSelectedObject)
               IconButton(
-                onPressed: _deleteSelectedTrendLine,
+                onPressed: _deleteSelectedObject,
                 icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                tooltip: '選択した斜線を削除',
+                tooltip: '删除选中的绘图对象',
                 padding: const EdgeInsets.all(4),
                 constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               ),
-            ],
             
             // すべての縦線をクリアボタン
             IconButton(
@@ -829,17 +951,29 @@ class _CandlestickChartState extends State<CandlestickChart> {
     _controller.adjustViewForResize(newWidth);
   }
 
+  // --- Interaction Pipeline (pointer/tap/scale) ---
+
   void _onPointerHover(PointerEvent event) {
     if (!mounted) return;
     setState(() {
       _crosshairPosition = event.localPosition;
-      
-      final double chartBodyHeight = widget.height - 80;
+
+      final geometry = _resolveChartGeometry();
       final double minPrice = _getMinPrice();
       final double maxPrice = _getMaxPrice();
 
       _hoveredCandle = _controller.getCandleAtX(event.localPosition.dx, _lastWidth);
-      _hoveredPrice = _controller.getPriceAtY(event.localPosition.dy, chartBodyHeight, minPrice, maxPrice);
+      _hoveredPrice = _controller.getPriceAtY(event.localPosition.dy, geometry.height, minPrice, maxPrice);
+
+      if (_activeDrawingTool != DrawingTool.none) {
+        final chartWidth = geometry.width;
+        _previewAnchor = CandleAnchor(
+          index: _xToDataIndex(event.localPosition.dx, chartWidth),
+          price: _yToPrice(event.localPosition.dy, geometry.height),
+        );
+      } else {
+        _previewAnchor = null;
+      }
     });
   }
 
@@ -849,141 +983,27 @@ class _CandlestickChartState extends State<CandlestickChart> {
       _crosshairPosition = null;
       _hoveredCandle = null;
       _hoveredPrice = null;
+      _previewAnchor = null;
     });
+  }
+
+  void _refreshUI() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   /// マウスポインター押下イベントを処理（右クリックを含む）
-  void _onPointerDown(PointerDownEvent event) {
-    // マウス右クリックかどうかチェック
-    if (event.buttons == kSecondaryMouseButton) {
-      // Set a flag to prevent onScaleStart from creating a new selection.
-      // This flag is reset after a delay to ensure the gesture is complete.
-      _isRightClickDeleting = true;
-      Future.delayed(const Duration(milliseconds: 100), () {
-        _isRightClickDeleting = false;
-      });
+  void _onPointerDown(PointerDownEvent event) =>
+      _CandlestickChartInteractionCoordinator.onPointerDown(this, event);
 
-      final RenderBox renderBox = context.findRenderObject() as RenderBox;
-      final Offset localPosition = renderBox.globalToLocal(event.position);
-      final double chartX = localPosition.dx;
-      final double chartWidth = renderBox.size.width;
+  void _onScaleUpdate(ScaleUpdateDetails details) =>
+      _CandlestickChartInteractionCoordinator.onScaleUpdate(this, details);
 
-      // 縦線削除を優先処理
-      if (_controller.verticalLines.isNotEmpty) {
-        _controller.removeVerticalLineNearPosition(chartX, chartWidth).then((deleted) {
-          if (deleted && mounted) {
-            setState(() {
-              // 縦線を削除するために再描画をトリガー
-            });
-          }
-        });
-        return;
-      }
+  void _onScaleStart(ScaleStartDetails details) =>
+      _CandlestickChartInteractionCoordinator.onScaleStart(this, details);
 
-      // 縦線モードでない場合、K線統計モードの削除を処理
-      if (_controller.isKlineCountMode) {
-        final selection = _controller.findKlineSelectionAtPosition(chartX, chartWidth);
-        if (selection != null) {
-          _controller.removeKlineSelection(selection.id).then((success) {
-            if (success && mounted) {
-              setState(() {
-                // Rebuild to reflect the removed selection.
-              });
-            }
-          });
-        }
-      }
-    }
-  }
-
-  void _onScaleUpdate(ScaleUpdateDetails details) {
-    if (_draggingTrendLineId != null && _draggingTrendTarget != null) {
-      final Offset localPosition = details.localFocalPoint;
-      final double chartWidth = _lastWidth > 0 ? _lastWidth : MediaQuery.of(context).size.width;
-      final double chartHeight = (widget.height - 80).clamp(1.0, double.infinity);
-
-      _updateDraggingTrendLine(localPosition, chartWidth, chartHeight);
-      return;
-    }
-
-    setState(() {
-      if (_controller.isKlineCountMode) {
-        // K線統計モード：ドラッグ選択を処理
-        final RenderBox renderBox = context.findRenderObject() as RenderBox;
-        final Offset localPosition = renderBox.globalToLocal(details.focalPoint);
-        _controller.updateSelection(localPosition.dx);
-        } else {
-        // 通常モード：ズームを処理
-        _controller.onScaleUpdate(details, _lastWidth);
-      }
-    });
-  }
-
-  void _onScaleStart(ScaleStartDetails details) {
-    if (_isRightClickDeleting) return; // 右クリック削除中は処理しない
-
-    final Offset localPosition = details.localFocalPoint;
-    final double chartWidth = _lastWidth > 0 ? _lastWidth : MediaQuery.of(context).size.width;
-    final double chartHeight = (widget.height - 80).clamp(1.0, double.infinity);
-
-    final dragHit = _hitTestObject(localPosition.dx, localPosition.dy, chartWidth, chartHeight);
-
-    if (dragHit != null) {
-      setState(() {
-        _selectedTrendLineId = dragHit.objectId;
-        _draggingTrendLineId = dragHit.objectId;
-        _draggingTrendTarget = dragHit.dragTarget;
-        _lastDragPosition = localPosition;
-      });
-      return;
-    }
-
-    if (_controller.isKlineCountMode) {
-      // K線統計モード：選択開始
-      _controller.startSelection(localPosition.dx);
-    }
-    // 通常モード：特別な処理は不要
-  }
-
-  void _onScaleEnd(ScaleEndDetails details) {
-    if (_draggingTrendLineId != null) {
-      setState(() {
-        _draggingTrendLineId = null;
-        _draggingTrendTarget = null;
-        _lastDragPosition = null;
-      });
-      return;
-    }
-
-    if (_controller.isKlineCountMode) {
-      // K線統計モード：選択完了
-      final RenderBox renderBox = context.findRenderObject() as RenderBox;
-      final double chartWidth = renderBox.size.width;
-      _controller.finishSelection(chartWidth);
-      
-      // 選択区域を自動保存
-      if (_controller.selectedKlineCount > 0) {
-        _controller.saveCurrentSelection(chartWidth).then((success) {
-          if (success) {
-            setState(() {
-              // 保存された選択区域を表示するために再描画をトリガー
-              // K線統計モードを自動終了
-              _controller.toggleKlineCountMode();
-            });
-          }
-        });
-      } else {
-        // K線が選択されていなくても統計モードを終了
-        setState(() {
-          _controller.toggleKlineCountMode();
-        });
-      }
-      
-      setState(() {
-        // 最終結果を表示するために再描画をトリガー
-      });
-    }
-  }
+  void _onScaleEnd(ScaleEndDetails details) =>
+      _CandlestickChartInteractionCoordinator.onScaleEnd(this, details);
 
   /// マウスホイールイベントを処理（ズーム操作）
   void _onPointerSignal(PointerSignalEvent event) {
@@ -1276,25 +1296,39 @@ class _CandlestickChartState extends State<CandlestickChart> {
   /// 縦線描画モードを切り替え
   void _toggleVerticalLineMode() {
     setState(() {
-      _isTrendLineMode = false;
-      _pendingTrendLineStartIndex = null;
-      _pendingTrendLineStartPrice = null;
+      _resetDrawingSession(clearTool: true);
       _controller.toggleVerticalLineMode();
     });
   }
 
-  void _toggleTrendLineMode() {
+  void _setDrawingTool(DrawingTool tool) {
     setState(() {
-      _isTrendLineMode = !_isTrendLineMode;
-      _pendingTrendLineStartIndex = null;
-      _pendingTrendLineStartPrice = null;
-      if (_isTrendLineMode && _controller.isVerticalLineMode) {
+      _activeDrawingTool = tool;
+      _resetDrawingSession();
+      if (tool != DrawingTool.none && _controller.isVerticalLineMode) {
         _controller.toggleVerticalLineMode();
       }
-      if (!_isTrendLineMode) {
-        _selectedTrendLineId = null;
+      if (tool == DrawingTool.none) {
+        _clearObjectSelection();
       }
     });
+  }
+
+  String _drawingToolLabel(DrawingTool tool) {
+    switch (tool) {
+      case DrawingTool.none:
+        return '关闭';
+      case DrawingTool.trendLine:
+        return '斜线';
+      case DrawingTool.circle:
+        return '圆圈';
+      case DrawingTool.rectangle:
+        return '长方形';
+      case DrawingTool.fibonacci:
+        return '斐波那契';
+      case DrawingTool.polyline:
+        return '折线图';
+    }
   }
 
   /// ウェーブポイント表示を切り替え
@@ -1340,80 +1374,252 @@ class _CandlestickChartState extends State<CandlestickChart> {
     );
   }
 
+  bool _isDoubleTap(Offset localPosition, DateTime now) {
+    return _lastTapTime != null &&
+        _lastTapPosition != null &&
+        now.difference(_lastTapTime!).inMilliseconds < 500 &&
+        (localPosition - _lastTapPosition!).distance < 10;
+  }
+
+  void _recordTap(Offset localPosition, DateTime now) {
+    _lastTapTime = now;
+    _lastTapPosition = localPosition;
+  }
+
+  void _resetTapTracking() {
+    _lastTapTime = null;
+    _lastTapPosition = null;
+  }
+
+  double get _chartBodyHeight => (widget.height - 80).clamp(1.0, double.infinity);
+
+  double _resolveChartWidth() {
+    return _lastWidth > 0 ? _lastWidth : MediaQuery.of(context).size.width;
+  }
+
+  _ChartGeometry _resolveChartGeometry() {
+    return _ChartGeometry(width: _resolveChartWidth(), height: _chartBodyHeight);
+  }
+
+  bool _handleChartDoubleTap({
+    required bool isDoubleClick,
+    required double chartX,
+    required double chartY,
+    required double chartWidth,
+    required double chartHeight,
+  }) {
+    if (!isDoubleClick) return false;
+
+    if (_activeDrawingTool != DrawingTool.none) {
+      _handleDrawingTap(chartX, chartY, chartWidth, chartHeight, true);
+    } else {
+      _handleDoubleClick(chartX, chartY, chartWidth, chartHeight);
+    }
+
+    _resetTapTracking();
+    return true;
+  }
+
+  bool _handleChartTapInDrawingOrSelectionModes({
+    required TapUpDetails details,
+    required double chartX,
+    required double chartY,
+    required double chartWidth,
+    required double chartHeight,
+    required bool isDoubleClick,
+  }) {
+    if (_activeDrawingTool != DrawingTool.none) {
+      _handleDrawingTap(chartX, chartY, chartWidth, chartHeight, isDoubleClick);
+      return true;
+    }
+
+    if (_handleObjectTapPriority(chartX, chartY, chartWidth, chartHeight)) {
+      _resetTapTracking();
+      return true;
+    }
+
+    if (_controller.isKlineCountMode && details.kind == PointerDeviceKind.mouse) {
+      try {
+        final selection = _controller.findKlineSelectionAtPosition(chartX, chartWidth);
+        if (selection != null) {
+          return true;
+        }
+      } catch (_) {
+      }
+    }
+
+    if (_controller.isVerticalLineMode) {
+      Log.debug('ChartInteraction', 'マウスクリック: globalPosition=${details.globalPosition}, localPosition=${details.localPosition}');
+      Log.debug('ChartInteraction', 'チャートサイズ: width=$chartWidth, height=$chartHeight');
+      Log.debug('ChartInteraction', '計算されたチャートX座標: $chartX');
+      _addVerticalLineAtPosition(chartX, chartWidth);
+      return true;
+    }
+
+    return false;
+  }
+
   /// チャートクリックイベントを処理
   void _onChartTap(TapUpDetails details) {
     if (_isRightClickDeleting) return; // 右クリック削除中は処理しない
     final Offset localPosition = details.localPosition;
     final double chartX = localPosition.dx;
     final double chartY = localPosition.dy;
-    final double chartWidth = _lastWidth > 0 ? _lastWidth : MediaQuery.of(context).size.width;
-    final double chartHeight = (widget.height - 80).clamp(1.0, double.infinity);
-    
-    // ダブルクリック検出
+    final geometry = _resolveChartGeometry();
+    final double chartWidth = geometry.width;
+    final double chartHeight = geometry.height;
     final now = DateTime.now();
-    final isDoubleClick = _lastTapTime != null && 
-                         _lastTapPosition != null &&
-                         now.difference(_lastTapTime!).inMilliseconds < 500 && // 500ms以内
-                         (localPosition - _lastTapPosition!).distance < 10; // 10ピクセル以内
-    
-    if (isDoubleClick) {
-      // ダブルクリック処理：手動高低点の追加/削除
-      _handleDoubleClick(chartX, chartY, chartWidth, chartHeight);
-      _lastTapTime = null;
-      _lastTapPosition = null;
-      return;
-    }
-    
-    // シングルクリックの記録
-    _lastTapTime = now;
-    _lastTapPosition = localPosition;
+    final isDoubleClick = _isDoubleTap(localPosition, now);
 
-    final double drawableChartHeight = (widget.height - 80).clamp(1.0, double.infinity);
-    if (chartY < 0 || chartY > drawableChartHeight) {
+    if (_handleChartDoubleTap(
+      isDoubleClick: isDoubleClick,
+      chartX: chartX,
+      chartY: chartY,
+      chartWidth: chartWidth,
+      chartHeight: chartHeight,
+    )) {
       return;
     }
 
-    // object優先: 先に既存オブジェクトへのヒット判定を行う
-    if (_handleObjectTapPriority(chartX, chartY, chartWidth, drawableChartHeight)) {
-      _lastTapTime = null;
-      _lastTapPosition = null;
-      return;
-    }
-    
-    // 右クリックかどうかチェック（K線統計モードで）
-    if (_controller.isKlineCountMode && details.kind == PointerDeviceKind.mouse) {
-      // クリック位置にK線選択区域があるか検索
-      try {
-        final selection = _controller.findKlineSelectionAtPosition(chartX, chartWidth);
-        if (selection != null) {
-          // 削除確認ダイアログを表示
-          return;
-        }
-      } catch (e) {
-        // 選択区域が見つからない、通常処理を継続
-      }
-    }
-    
-    if (_isTrendLineMode) {
-      _handleTrendLineTap(chartX, chartY, chartWidth, drawableChartHeight);
+    _recordTap(localPosition, now);
+
+    if (!geometry.containsY(chartY)) {
       return;
     }
 
-    if (_controller.isVerticalLineMode) {
-      // 縦線描画モードで、クリック位置に縦線を追加
-      Log.debug('ChartInteraction', 'マウスクリック: globalPosition=${details.globalPosition}, localPosition=$localPosition');
-      Log.debug('ChartInteraction', 'チャートサイズ: width=$chartWidth, height=$chartHeight');
-      Log.debug('ChartInteraction', '計算されたチャートX座標: $chartX');
-      
-      _addVerticalLineAtPosition(chartX, chartWidth);
+    if (_handleChartTapInDrawingOrSelectionModes(
+      details: details,
+      chartX: chartX,
+      chartY: chartY,
+      chartWidth: chartWidth,
+      chartHeight: chartHeight,
+      isDoubleClick: isDoubleClick,
+    )) {
       return;
     }
 
-    if (_selectedTrendLineId != null) {
+    if (_hasSelectedObject) {
       setState(() {
-        _selectedTrendLineId = null;
+        _clearObjectSelection();
       });
     }
+  }
+
+  void _handleDrawingTap(
+    double chartX,
+    double chartY,
+    double chartWidth,
+    double chartHeight,
+    bool isDoubleClick,
+  ) {
+    final int index = _xToDataIndex(chartX, chartWidth);
+    final double price = _yToPrice(chartY, chartHeight);
+
+    if (_activeDrawingTool == DrawingTool.polyline) {
+      if (isDoubleClick && _pendingPolylinePoints.length >= 2) {
+        _finishPolylineDrawing();
+        return;
+      }
+      setState(() {
+        final anchor = CandleAnchor(index: index, price: price);
+        _pendingPolylinePoints.add(anchor);
+        _previewAnchor = anchor;
+      });
+      return;
+    }
+
+    if (_pendingDrawingStartAnchor == null) {
+      setState(() {
+        _pendingDrawingStartAnchor = CandleAnchor(index: index, price: price);
+        _clearObjectSelection();
+      });
+      return;
+    }
+
+    final anchorStart = _pendingDrawingStartAnchor!;
+    final anchorEnd = CandleAnchor(index: index, price: price);
+
+    setState(() {
+      final ChartObject? object = _createDrawingObject(anchorStart, anchorEnd);
+      if (object != null) {
+        _addDrawingObject(object);
+      }
+
+      _completeSingleDrawCycle();
+    });
+  }
+
+  ChartObject? _createDrawingObject(CandleAnchor start, CandleAnchor end) {
+    final uniqueId = DateTime.now().microsecondsSinceEpoch;
+    switch (_activeDrawingTool) {
+      case DrawingTool.trendLine:
+        return TrendLineObject(
+          id: uniqueId.toString(),
+          startIndex: start.index,
+          startPrice: start.price,
+          endIndex: end.index,
+          endPrice: end.price,
+          layer: ChartObjectLayer.interaction,
+        );
+      case DrawingTool.circle:
+        return CircleObject(
+          id: 'circle-$uniqueId',
+          start: start,
+          end: end,
+          layer: ChartObjectLayer.interaction,
+        );
+      case DrawingTool.rectangle:
+        return RectangleObject(
+          id: 'rect-$uniqueId',
+          start: start,
+          end: end,
+          layer: ChartObjectLayer.interaction,
+        );
+      case DrawingTool.fibonacci:
+        return FibonacciRetracementObject(
+          id: 'fib-user-$uniqueId',
+          start: start,
+          end: end,
+          layer: ChartObjectLayer.interaction,
+        );
+      case DrawingTool.none:
+      case DrawingTool.polyline:
+        return null;
+    }
+  }
+
+  void _addDrawingObject(ChartObject object) {
+    if (object is TrendLineObject) {
+      _trendLines.add(object);
+      _selectedObjectId = object.id;
+      _selectedObjectType = TrendLineObject;
+      return;
+    }
+    if (object is CircleObject) {
+      _circleObjects.add(object);
+      return;
+    }
+    if (object is RectangleObject) {
+      _rectangleObjects.add(object);
+      return;
+    }
+    if (object is FibonacciRetracementObject) {
+      _fibonacciObjects.add(object);
+    }
+  }
+
+  void _finishPolylineDrawing() {
+    if (_pendingPolylinePoints.length < 2) return;
+    setState(() {
+      _polylineObjects.add(
+        FreePolylineObject(
+          id: 'polyline-${DateTime.now().microsecondsSinceEpoch}',
+          points: List<CandleAnchor>.from(_pendingPolylinePoints),
+          layer: ChartObjectLayer.interaction,
+        ),
+      );
+      _completeSingleDrawCycle();
+    });
   }
 
   bool _handleObjectTapPriority(
@@ -1426,9 +1632,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
 
     if (dragHit != null) {
       setState(() {
-        _selectedTrendLineId = dragHit.objectId;
-        _pendingTrendLineStartIndex = null;
-        _pendingTrendLineStartPrice = null;
+        _applyObjectSelectionHit(dragHit);
       });
       return true;
     }
@@ -1436,47 +1640,12 @@ class _CandlestickChartState extends State<CandlestickChart> {
     return false;
   }
 
-  void _handleTrendLineTap(double chartX, double chartY, double chartWidth, double chartHeight) {
-    final int index = _xToDataIndex(chartX, chartWidth);
-    final double price = _yToPrice(chartY, chartHeight);
-
-    if (_pendingTrendLineStartIndex == null || _pendingTrendLineStartPrice == null) {
-      setState(() {
-        _pendingTrendLineStartIndex = index;
-        _pendingTrendLineStartPrice = price;
-        _selectedTrendLineId = null;
-      });
-      return;
-    }
-
-    final int startIndex = _pendingTrendLineStartIndex!;
-    final double startPrice = _pendingTrendLineStartPrice!;
-    if (startIndex == index && (startPrice - price).abs() < 0.0000001) {
-      return;
-    }
-
-    final trendLine = TrendLine(
-      id: DateTime.now().microsecondsSinceEpoch.toString(),
-      startIndex: startIndex,
-      startPrice: startPrice,
-      endIndex: index,
-      endPrice: price,
-    );
-
-    setState(() {
-      _trendLines.add(trendLine);
-      _selectedTrendLineId = trendLine.id;
-      _pendingTrendLineStartIndex = null;
-      _pendingTrendLineStartPrice = null;
-    });
-  }
-
   int _xToDataIndex(double x, double chartWidth) {
     final double unit = (_controller.candleWidth * _controller.scale) + _controller.spacing;
     if (unit <= 0 || widget.data.isEmpty) return 0;
     final double rightEdge = chartWidth - _controller.emptySpaceWidth;
     final double rawIndex = _controller.endIndex - 0.5 - (rightEdge - x) / unit;
-    return rawIndex.round().clamp(0, widget.data.length - 1);
+    return _clampDataIndex(rawIndex.round());
   }
 
   double _yToPrice(double y, double chartHeight) {
@@ -1510,139 +1679,473 @@ class _CandlestickChartState extends State<CandlestickChart> {
     );
   }
 
-  void _updateDraggingTrendLine(Offset localPosition, double chartWidth, double chartHeight) {
-    final String? id = _draggingTrendLineId;
-    final ObjectDragTarget? target = _draggingTrendTarget;
-    if (id == null || target == null) return;
+  TrendLineObject _copyTrendLine(
+    TrendLineObject line, {
+    int? startIndex,
+    double? startPrice,
+    int? endIndex,
+    double? endPrice,
+  }) {
+    return TrendLineObject(
+      id: line.id,
+      startIndex: startIndex ?? line.startIndex,
+      startPrice: startPrice ?? line.startPrice,
+      endIndex: endIndex ?? line.endIndex,
+      endPrice: endPrice ?? line.endPrice,
+      color: line.color,
+      width: line.width,
+      selected: line.selected,
+      layer: line.layer,
+      visible: line.visible,
+    );
+  }
 
-    final int index = _trendLines.indexWhere((line) => line.id == id);
-    if (index < 0) return;
+  int get _maxDataIndex => widget.data.isEmpty ? 0 : widget.data.length - 1;
 
-    final TrendLine line = _trendLines[index];
+  int _clampDataIndex(int index) => index.clamp(0, _maxDataIndex);
 
-    if (target == ObjectDragTarget.start) {
-      final int newStartIndex = _xToDataIndex(localPosition.dx, chartWidth);
-      final double newStartPrice = _yToPrice(localPosition.dy, chartHeight);
-      setState(() {
-        _trendLines[index] = line.copyWith(
-          startIndex: newStartIndex,
-          startPrice: newStartPrice,
-        );
-      });
-      return;
-    }
+  CandleAnchor _anchorAt(int index, double price) {
+    return CandleAnchor(index: _clampDataIndex(index), price: price);
+  }
 
-    if (target == ObjectDragTarget.end) {
-      final int newEndIndex = _xToDataIndex(localPosition.dx, chartWidth);
-      final double newEndPrice = _yToPrice(localPosition.dy, chartHeight);
-      setState(() {
-        _trendLines[index] = line.copyWith(
-          endIndex: newEndIndex,
-          endPrice: newEndPrice,
-        );
-      });
-      return;
-    }
+  CandleAnchor _translateAnchor(CandleAnchor anchor, int indexDelta, double priceDelta) {
+    return CandleAnchor(
+      index: _clampDataIndex(anchor.index + indexDelta),
+      price: anchor.price + priceDelta,
+    );
+  }
+
+  void _updateDraggingObject(Offset localPosition, double chartWidth, double chartHeight) {
+    final String? id = _draggingObjectId;
+    final Type? objectType = _draggingObjectType;
+    final ObjectDragTarget? target = _draggingObjectTarget;
+    if (id == null || objectType == null || target == null) return;
+
+    final int newIndex = _xToDataIndex(localPosition.dx, chartWidth);
+    final double newPrice = _yToPrice(localPosition.dy, chartHeight);
 
     final Offset? previous = _lastDragPosition;
-    if (previous == null) {
-      _lastDragPosition = localPosition;
-      return;
-    }
-
-    final double dx = localPosition.dx - previous.dx;
-    final double dy = localPosition.dy - previous.dy;
     final double unit = (_controller.candleWidth * _controller.scale) + _controller.spacing;
-    final int indexDelta = unit <= 0.0000001 ? 0 : (dx / unit).round();
+    final double dx = previous == null ? 0 : localPosition.dx - previous.dx;
+    final double dy = previous == null ? 0 : localPosition.dy - previous.dy;
+    final int indexDelta = (previous == null || unit <= 0.0000001) ? 0 : (dx / unit).round();
 
     final double minPrice = _getMinPrice();
     final double maxPrice = _getMaxPrice();
     final double priceRange = (maxPrice - minPrice).abs();
     final double pricePerPixel = chartHeight <= 0.0000001 ? 0 : (priceRange / chartHeight);
-    final double priceDelta = -dy * pricePerPixel;
+    final double priceDelta = previous == null ? 0 : (-dy * pricePerPixel);
+
+    final dragContext = _DragUpdateContext(
+      target: target,
+      newIndex: newIndex,
+      newPrice: newPrice,
+      indexDelta: indexDelta,
+      priceDelta: priceDelta,
+    );
 
     setState(() {
-      _trendLines[index] = line.copyWith(
-        startIndex: (line.startIndex + indexDelta).clamp(0, widget.data.length - 1),
-        endIndex: (line.endIndex + indexDelta).clamp(0, widget.data.length - 1),
-        startPrice: line.startPrice + priceDelta,
-        endPrice: line.endPrice + priceDelta,
-      );
+      if (objectType == TrendLineObject) {
+        _updateTrendLineDuringDrag(id, dragContext);
+      } else if (objectType == CircleObject) {
+        _updateCircleDuringDrag(id, dragContext);
+      } else if (objectType == RectangleObject) {
+        _updateRectangleDuringDrag(id, dragContext);
+      } else if (objectType == FibonacciRetracementObject) {
+        _updateFibonacciDuringDrag(id, dragContext);
+      } else if (objectType == FreePolylineObject) {
+        _updatePolylineDuringDrag(id, dragContext);
+      }
+
       _lastDragPosition = localPosition;
     });
   }
 
+  // --- Drag Update Pipeline (per object type) ---
+
+  void _updateTrendLineDuringDrag(
+    String id,
+    _DragUpdateContext context,
+  ) {
+    final int idx = _trendLines.indexWhere((line) => line.id == id);
+    if (idx < 0) return;
+
+    final line = _trendLines[idx];
+    if (context.target == ObjectDragTarget.start) {
+      _trendLines[idx] = _copyTrendLine(
+        line,
+        startIndex: context.newIndex,
+        startPrice: context.newPrice,
+      );
+    } else if (context.target == ObjectDragTarget.end) {
+      _trendLines[idx] = _copyTrendLine(
+        line,
+        endIndex: context.newIndex,
+        endPrice: context.newPrice,
+      );
+    } else {
+      _trendLines[idx] = _copyTrendLine(
+        line,
+        startIndex: _clampDataIndex(line.startIndex + context.indexDelta),
+        startPrice: line.startPrice + context.priceDelta,
+        endIndex: _clampDataIndex(line.endIndex + context.indexDelta),
+        endPrice: line.endPrice + context.priceDelta,
+      );
+    }
+  }
+
+  void _updateCircleDuringDrag(
+    String id,
+    _DragUpdateContext context,
+  ) {
+    final int idx = _circleObjects.indexWhere((item) => item.id == id);
+    if (idx < 0) return;
+
+    final object = _circleObjects[idx];
+    if (context.target == ObjectDragTarget.start) {
+      _circleObjects[idx] = CircleObject(
+        id: object.id,
+        start: _anchorAt(context.newIndex, context.newPrice),
+        end: object.end,
+        color: object.color,
+        width: object.width,
+        layer: object.layer,
+        visible: object.visible,
+      );
+    } else if (context.target == ObjectDragTarget.end) {
+      _circleObjects[idx] = CircleObject(
+        id: object.id,
+        start: object.start,
+        end: _anchorAt(context.newIndex, context.newPrice),
+        color: object.color,
+        width: object.width,
+        layer: object.layer,
+        visible: object.visible,
+      );
+    } else {
+      _circleObjects[idx] = CircleObject(
+        id: object.id,
+        start: _translateAnchor(object.start, context.indexDelta, context.priceDelta),
+        end: _translateAnchor(object.end, context.indexDelta, context.priceDelta),
+        color: object.color,
+        width: object.width,
+        layer: object.layer,
+        visible: object.visible,
+      );
+    }
+  }
+
+  void _updateRectangleDuringDrag(
+    String id,
+    _DragUpdateContext context,
+  ) {
+    final int idx = _rectangleObjects.indexWhere((item) => item.id == id);
+    if (idx < 0) return;
+
+    final object = _rectangleObjects[idx];
+    if (context.target == ObjectDragTarget.start) {
+      _rectangleObjects[idx] = RectangleObject(
+        id: object.id,
+        start: _anchorAt(context.newIndex, context.newPrice),
+        end: object.end,
+        color: object.color,
+        width: object.width,
+        fillAlpha: object.fillAlpha,
+        layer: object.layer,
+        visible: object.visible,
+      );
+    } else if (context.target == ObjectDragTarget.end) {
+      _rectangleObjects[idx] = RectangleObject(
+        id: object.id,
+        start: object.start,
+        end: _anchorAt(context.newIndex, context.newPrice),
+        color: object.color,
+        width: object.width,
+        fillAlpha: object.fillAlpha,
+        layer: object.layer,
+        visible: object.visible,
+      );
+    } else {
+      _rectangleObjects[idx] = RectangleObject(
+        id: object.id,
+        start: _translateAnchor(object.start, context.indexDelta, context.priceDelta),
+        end: _translateAnchor(object.end, context.indexDelta, context.priceDelta),
+        color: object.color,
+        width: object.width,
+        fillAlpha: object.fillAlpha,
+        layer: object.layer,
+        visible: object.visible,
+      );
+    }
+  }
+
+  void _updateFibonacciDuringDrag(
+    String id,
+    _DragUpdateContext context,
+  ) {
+    final int idx = _fibonacciObjects.indexWhere((item) => item.id == id);
+    if (idx < 0) return;
+
+    final object = _fibonacciObjects[idx];
+    if (context.target == ObjectDragTarget.start) {
+      _fibonacciObjects[idx] = FibonacciRetracementObject(
+        id: object.id,
+        start: _anchorAt(context.newIndex, context.newPrice),
+        end: object.end,
+        levels: object.levels,
+        color: object.color,
+        width: object.width,
+        layer: object.layer,
+        visible: object.visible,
+      );
+    } else if (context.target == ObjectDragTarget.end) {
+      _fibonacciObjects[idx] = FibonacciRetracementObject(
+        id: object.id,
+        start: object.start,
+        end: _anchorAt(context.newIndex, context.newPrice),
+        levels: object.levels,
+        color: object.color,
+        width: object.width,
+        layer: object.layer,
+        visible: object.visible,
+      );
+    } else {
+      _fibonacciObjects[idx] = FibonacciRetracementObject(
+        id: object.id,
+        start: _translateAnchor(object.start, context.indexDelta, context.priceDelta),
+        end: _translateAnchor(object.end, context.indexDelta, context.priceDelta),
+        levels: object.levels,
+        color: object.color,
+        width: object.width,
+        layer: object.layer,
+        visible: object.visible,
+      );
+    }
+  }
+
+  void _updatePolylineDuringDrag(
+    String id,
+    _DragUpdateContext context,
+  ) {
+    if (context.target != ObjectDragTarget.body) return;
+
+    final int idx = _polylineObjects.indexWhere((item) => item.id == id);
+    if (idx < 0) return;
+
+    final object = _polylineObjects[idx];
+    _polylineObjects[idx] = FreePolylineObject(
+      id: object.id,
+      points: object.points
+          .map((p) => _translateAnchor(p, context.indexDelta, context.priceDelta))
+          .toList(),
+      color: object.color,
+      width: object.width,
+      layer: object.layer,
+      visible: object.visible,
+    );
+  }
+
   List<ChartObject> _buildObjectStickers() {
-    return ChartObjectFactory.build(
+    final objects = _buildLayer2AndSystemObjects();
+    _appendLayer3UserDrawings(objects);
+    _appendPreviewObjects(objects);
+    return objects;
+  }
+
+  // --- Object Build/Preview Pipeline ---
+
+  List<ChartObject> _buildLayer2AndSystemObjects() {
+    final objects = ChartObjectFactory.build(
       controller: _controller,
       trendLines: _trendLines,
       selectedTrendLineId: _selectedTrendLineId,
       includeTrendFiltering: widget.isTrendFilteringEnabled ?? false,
-      includeFibonacciForSelectedTrendLine: true,
+      includeFibonacciForSelectedTrendLine: false,
+    );
+    return objects;
+  }
+
+  void _appendLayer3UserDrawings(List<ChartObject> objects) {
+    objects.addAll(_circleObjects);
+    objects.addAll(_rectangleObjects);
+    objects.addAll(_fibonacciObjects);
+    objects.addAll(_polylineObjects);
+  }
+
+  void _appendPreviewObjects(List<ChartObject> objects) {
+    final CandleAnchor? start = _pendingDrawingStartAnchor;
+    final CandleAnchor? preview = _previewAnchor;
+
+    if (start != null && preview != null) {
+      final ChartObject? toolPreview = _buildToolPreviewObject(start, preview);
+      if (toolPreview != null) {
+        objects.add(toolPreview);
+      }
+    }
+
+    final ChartObject? polylinePreview = _buildPolylinePreviewObject(preview);
+    if (polylinePreview != null) {
+      objects.add(polylinePreview);
+    }
+  }
+
+  ChartObject? _buildToolPreviewObject(CandleAnchor start, CandleAnchor preview) {
+    switch (_activeDrawingTool) {
+      case DrawingTool.trendLine:
+        return TrendLineObject(
+          id: 'trend-preview',
+          startIndex: start.index,
+          startPrice: start.price,
+          endIndex: preview.index,
+          endPrice: preview.price,
+          color: '#66FFD700',
+          layer: ChartObjectLayer.interaction,
+        );
+      case DrawingTool.circle:
+        return CircleObject(
+          id: 'circle-preview',
+          start: start,
+          end: preview,
+          color: '#6600BCD4',
+          layer: ChartObjectLayer.interaction,
+        );
+      case DrawingTool.rectangle:
+        return RectangleObject(
+          id: 'rect-preview',
+          start: start,
+          end: preview,
+          color: '#6603A9F4',
+          fillAlpha: 0.08,
+          layer: ChartObjectLayer.interaction,
+        );
+      case DrawingTool.fibonacci:
+        return FibonacciRetracementObject(
+          id: 'fib-preview',
+          start: start,
+          end: preview,
+          color: '#669C27B0',
+          layer: ChartObjectLayer.interaction,
+        );
+      case DrawingTool.none:
+      case DrawingTool.polyline:
+        return null;
+    }
+  }
+
+  ChartObject? _buildPolylinePreviewObject(CandleAnchor? preview) {
+    if (_activeDrawingTool != DrawingTool.polyline || _pendingPolylinePoints.isEmpty) {
+      return null;
+    }
+
+    final previewPoints = List<CandleAnchor>.from(_pendingPolylinePoints);
+    if (preview != null) {
+      final last = previewPoints.last;
+      if (last.index != preview.index || (last.price - preview.price).abs() > 0.0000001) {
+        previewPoints.add(preview);
+      }
+    }
+
+    if (previewPoints.length < 2) return null;
+
+    return FreePolylineObject(
+      id: 'polyline-preview',
+      points: previewPoints,
+      color: '#66FFC107',
+      layer: ChartObjectLayer.interaction,
     );
   }
 
-  void _adjustSelectedTrendLineLength(double factor) {
+  int? _getSelectedTrendLineIndex() {
     final String? id = _selectedTrendLineId;
-    if (id == null) return;
+    if (id == null) return null;
     final int index = _trendLines.indexWhere((line) => line.id == id);
-    if (index < 0) return;
+    return index < 0 ? null : index;
+  }
 
-    final TrendLine line = _trendLines[index];
-    final double dx = (line.endIndex - line.startIndex).toDouble();
-    final double dy = line.endPrice - line.startPrice;
-    final double newEndIndex = line.startIndex + dx * factor;
-    final double newEndPrice = line.startPrice + dy * factor;
-
+  void _updateSelectedTrendLine(TrendLineObject Function(TrendLineObject line) updater) {
+    final int? index = _getSelectedTrendLineIndex();
+    if (index == null) return;
+    final TrendLineObject line = _trendLines[index];
     setState(() {
-      _trendLines[index] = line.copyWith(
-        endIndex: newEndIndex.round().clamp(0, widget.data.length - 1),
+      _trendLines[index] = updater(line);
+    });
+  }
+
+  bool _removeById<T extends ChartObject>(List<T> objects, String id) {
+    final int before = objects.length;
+    objects.removeWhere((object) => object.id == id);
+    return objects.length != before;
+  }
+
+  bool _removeObjectByTypeAndId(Type objectType, String id) {
+    if (objectType == TrendLineObject) {
+      return _removeById(_trendLines, id);
+    }
+    if (objectType == CircleObject) {
+      return _removeById(_circleObjects, id);
+    }
+    if (objectType == RectangleObject) {
+      return _removeById(_rectangleObjects, id);
+    }
+    if (objectType == FibonacciRetracementObject) {
+      return _removeById(_fibonacciObjects, id);
+    }
+    if (objectType == FreePolylineObject) {
+      return _removeById(_polylineObjects, id);
+    }
+    return false;
+  }
+
+  void _adjustSelectedTrendLineLength(double factor) {
+    _updateSelectedTrendLine((line) {
+      final double dx = (line.endIndex - line.startIndex).toDouble();
+      final double dy = line.endPrice - line.startPrice;
+      final double newEndIndex = line.startIndex + dx * factor;
+      final double newEndPrice = line.startPrice + dy * factor;
+      return _copyTrendLine(
+        line,
+        endIndex: _clampDataIndex(newEndIndex.round()),
         endPrice: newEndPrice,
       );
     });
   }
 
   void _adjustSelectedTrendLineAngle(double deltaDegrees) {
-    final String? id = _selectedTrendLineId;
-    if (id == null) return;
-    final int index = _trendLines.indexWhere((line) => line.id == id);
-    if (index < 0) return;
+    _updateSelectedTrendLine((line) {
+      final double dx = (line.endIndex - line.startIndex).toDouble();
+      final double dy = line.endPrice - line.startPrice;
+      final double length = math.sqrt(dx * dx + dy * dy);
+      if (length < 0.0000001) return line;
 
-    final TrendLine line = _trendLines[index];
-    final double dx = (line.endIndex - line.startIndex).toDouble();
-    final double dy = line.endPrice - line.startPrice;
-    final double length = math.sqrt(dx * dx + dy * dy);
-    if (length < 0.0000001) return;
+      final double angle = math.atan2(dy, dx) + (deltaDegrees * math.pi / 180.0);
+      final double newDx = math.cos(angle) * length;
+      final double newDy = math.sin(angle) * length;
 
-    final double angle = math.atan2(dy, dx) + (deltaDegrees * math.pi / 180.0);
-    final double newDx = math.cos(angle) * length;
-    final double newDy = math.sin(angle) * length;
-
-    setState(() {
-      _trendLines[index] = line.copyWith(
-        endIndex: (line.startIndex + newDx).round().clamp(0, widget.data.length - 1),
+      return _copyTrendLine(
+        line,
+        endIndex: _clampDataIndex((line.startIndex + newDx).round()),
         endPrice: line.startPrice + newDy,
       );
     });
   }
 
-  void _deleteSelectedTrendLine() {
-    final String? id = _selectedTrendLineId;
-    if (id == null) return;
+  void _deleteSelectedObject() {
+    final String? id = _selectedObjectId;
+    final Type? objectType = _selectedObjectType;
+    if (id == null || objectType == null) return;
+
     setState(() {
-      _trendLines.removeWhere((line) => line.id == id);
-      _selectedTrendLineId = null;
-      _pendingTrendLineStartIndex = null;
-      _pendingTrendLineStartPrice = null;
+      _removeObjectByTypeAndId(objectType, id);
+
+      _clearObjectSelection();
+      _clearPendingDrawingStart();
     });
   }
 
   /// 指定位置に縦線を追加
   void _addVerticalLineAtPosition(double x, double chartWidth) async {
     await _controller.addVerticalLineAtPosition(x, chartWidth);
-    setState(() {
-      // 再描画をトリガー
-    });
+    _refreshUI();
   }
 
   /// ダブルクリック処理：手動高低点の追加/削除
@@ -1654,18 +2157,14 @@ class _CandlestickChartState extends State<CandlestickChart> {
     
     // 手動高低点の追加/削除を実行
     await _controller.toggleManualHighLowPointAtPosition(chartX, chartY, chartWidth, chartHeight, minPrice, maxPrice);
-    
-    setState(() {
-      // 再描画をトリガー
-    });
+
+    _refreshUI();
   }
 
   /// すべての縦線をクリア
   void _clearAllVerticalLines() async {
     await _controller.clearAllVerticalLines();
-    setState(() {
-      // 再描画をトリガー
-    });
+    _refreshUI();
   }
 
   /// データ表示を制限する
