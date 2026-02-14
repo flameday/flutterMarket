@@ -6,25 +6,18 @@ import '../models/price_data.dart';
 import '../models/timeframe.dart';
 import '../models/trading_pair.dart';
 import '../models/chart_object.dart';
+import '../models/drawing_tool.dart';
 import '../constants/chart_constants.dart';
 import '../services/log_service.dart';
 import '../services/chart_object_factory.dart';
 import '../services/chart_object_interaction_service.dart';
 import '../services/user_drawing_layer3_manager.dart';
+import '../services/layer3_drawing_object_builder.dart';
 import 'candlestick_painter.dart';
 import 'chart_view_controller.dart';
 import 'components/bollinger_bands_settings_dialog.dart';
 
 part 'candlestick_chart_interaction_coordinator.dart';
-
-enum DrawingTool {
-  none,
-  trendLine,
-  circle,
-  rectangle,
-  fibonacci,
-  polyline,
-}
 
 class _ChartGeometry {
   const _ChartGeometry({required this.width, required this.height});
@@ -793,7 +786,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
 
             if (_activeDrawingTool != DrawingTool.none)
               SelectableText(
-                '绘制:${_drawingToolLabel(_activeDrawingTool)}',
+                '绘制:${_activeDrawingTool.labelZh}',
                 style: TextStyle(color: Colors.greenAccent, fontSize: 10),
               ),
 
@@ -1301,23 +1294,6 @@ class _CandlestickChartState extends State<CandlestickChart> {
     });
   }
 
-  String _drawingToolLabel(DrawingTool tool) {
-    switch (tool) {
-      case DrawingTool.none:
-        return '关闭';
-      case DrawingTool.trendLine:
-        return '斜线';
-      case DrawingTool.circle:
-        return '圆圈';
-      case DrawingTool.rectangle:
-        return '长方形';
-      case DrawingTool.fibonacci:
-        return '斐波那契';
-      case DrawingTool.polyline:
-        return '折线图';
-    }
-  }
-
   /// ウェーブポイント表示を切り替え
   void _toggleWavePointsVisibility() {
     setState(() {
@@ -1525,54 +1501,21 @@ class _CandlestickChartState extends State<CandlestickChart> {
 
     final anchorStart = _pendingDrawingStartAnchor!;
     final anchorEnd = CandleAnchor(index: index, price: price);
+    final int uniqueId = DateTime.now().microsecondsSinceEpoch;
 
     setState(() {
-      final ChartObject? object = _createDrawingObject(anchorStart, anchorEnd);
+      final ChartObject? object = Layer3DrawingObjectBuilder.createDrawingObject(
+        tool: _activeDrawingTool,
+        start: anchorStart,
+        end: anchorEnd,
+        uniqueId: uniqueId,
+      );
       if (object != null) {
         _addDrawingObject(object);
       }
 
       _completeSingleDrawCycle();
     });
-  }
-
-  ChartObject? _createDrawingObject(CandleAnchor start, CandleAnchor end) {
-    final uniqueId = DateTime.now().microsecondsSinceEpoch;
-    switch (_activeDrawingTool) {
-      case DrawingTool.trendLine:
-        return TrendLineObject(
-          id: uniqueId.toString(),
-          startIndex: start.index,
-          startPrice: start.price,
-          endIndex: end.index,
-          endPrice: end.price,
-          layer: ChartObjectLayer.interaction,
-        );
-      case DrawingTool.circle:
-        return CircleObject(
-          id: 'circle-$uniqueId',
-          start: start,
-          end: end,
-          layer: ChartObjectLayer.interaction,
-        );
-      case DrawingTool.rectangle:
-        return RectangleObject(
-          id: 'rect-$uniqueId',
-          start: start,
-          end: end,
-          layer: ChartObjectLayer.interaction,
-        );
-      case DrawingTool.fibonacci:
-        return FibonacciRetracementObject(
-          id: 'fib-user-$uniqueId',
-          start: start,
-          end: end,
-          layer: ChartObjectLayer.interaction,
-        );
-      case DrawingTool.none:
-      case DrawingTool.polyline:
-        return null;
-    }
   }
 
   void _addDrawingObject(ChartObject object) {
@@ -1585,12 +1528,12 @@ class _CandlestickChartState extends State<CandlestickChart> {
 
   void _finishPolylineDrawing() {
     if (_pendingPolylinePoints.length < 2) return;
+    final int uniqueId = DateTime.now().microsecondsSinceEpoch;
     setState(() {
       _layer3DrawingManager.addDrawingObject(
-        FreePolylineObject(
-          id: 'polyline-${DateTime.now().microsecondsSinceEpoch}',
+        Layer3DrawingObjectBuilder.createPolylineObject(
           points: List<CandleAnchor>.from(_pendingPolylinePoints),
-          layer: ChartObjectLayer.interaction,
+          uniqueId: uniqueId,
         ),
       );
       _completeSingleDrawCycle();
@@ -1724,82 +1667,24 @@ class _CandlestickChartState extends State<CandlestickChart> {
     final CandleAnchor? preview = _previewAnchor;
 
     if (start != null && preview != null) {
-      final ChartObject? toolPreview = _buildToolPreviewObject(start, preview);
+      final ChartObject? toolPreview = Layer3DrawingObjectBuilder.createToolPreviewObject(
+        tool: _activeDrawingTool,
+        start: start,
+        preview: preview,
+      );
       if (toolPreview != null) {
         objects.add(toolPreview);
       }
     }
 
-    final ChartObject? polylinePreview = _buildPolylinePreviewObject(preview);
+    final ChartObject? polylinePreview = Layer3DrawingObjectBuilder.createPolylinePreviewObject(
+      tool: _activeDrawingTool,
+      pendingPoints: _pendingPolylinePoints,
+      preview: preview,
+    );
     if (polylinePreview != null) {
       objects.add(polylinePreview);
     }
-  }
-
-  ChartObject? _buildToolPreviewObject(CandleAnchor start, CandleAnchor preview) {
-    switch (_activeDrawingTool) {
-      case DrawingTool.trendLine:
-        return TrendLineObject(
-          id: 'trend-preview',
-          startIndex: start.index,
-          startPrice: start.price,
-          endIndex: preview.index,
-          endPrice: preview.price,
-          color: '#66FFD700',
-          layer: ChartObjectLayer.interaction,
-        );
-      case DrawingTool.circle:
-        return CircleObject(
-          id: 'circle-preview',
-          start: start,
-          end: preview,
-          color: '#6600BCD4',
-          layer: ChartObjectLayer.interaction,
-        );
-      case DrawingTool.rectangle:
-        return RectangleObject(
-          id: 'rect-preview',
-          start: start,
-          end: preview,
-          color: '#6603A9F4',
-          fillAlpha: 0.08,
-          layer: ChartObjectLayer.interaction,
-        );
-      case DrawingTool.fibonacci:
-        return FibonacciRetracementObject(
-          id: 'fib-preview',
-          start: start,
-          end: preview,
-          color: '#669C27B0',
-          layer: ChartObjectLayer.interaction,
-        );
-      case DrawingTool.none:
-      case DrawingTool.polyline:
-        return null;
-    }
-  }
-
-  ChartObject? _buildPolylinePreviewObject(CandleAnchor? preview) {
-    if (_activeDrawingTool != DrawingTool.polyline || _pendingPolylinePoints.isEmpty) {
-      return null;
-    }
-
-    final previewPoints = List<CandleAnchor>.from(_pendingPolylinePoints);
-    if (preview != null) {
-      final last = previewPoints.last;
-      if (last.index != preview.index || (last.price - preview.price).abs() > 0.0000001) {
-        previewPoints.add(preview);
-      }
-    }
-
-    if (previewPoints.length < 2) return null;
-
-    return FreePolylineObject(
-      id: 'polyline-preview',
-      points: previewPoints,
-      color: '#66FFC107',
-      layer: ChartObjectLayer.interaction,
-    );
   }
 
   bool _removeObjectByTypeAndId(Type objectType, String id) {
