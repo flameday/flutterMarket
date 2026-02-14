@@ -162,6 +162,13 @@ class _CandlestickChartInteractionCoordinator {
   }
 
   static RenderBox _chartRenderBox(_CandlestickChartState state) {
+    final BuildContext? chartBodyContext = state._chartBodyKey.currentContext;
+    if (chartBodyContext != null) {
+      final renderObject = chartBodyContext.findRenderObject();
+      if (renderObject is RenderBox) {
+        return renderObject;
+      }
+    }
     return state.context.findRenderObject() as RenderBox;
   }
 }

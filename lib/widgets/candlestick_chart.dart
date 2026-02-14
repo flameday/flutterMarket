@@ -146,13 +146,16 @@ class _CandlestickChartState extends State<CandlestickChart> {
   // 5) Object build/preview pipeline
   // 6) View/utility operations
   late final ChartViewController _controller;
+  final GlobalKey _chartBodyKey = GlobalKey();
   double _lastWidth = 0.0;
+  double _chartBodyRenderHeight = 0.0;
   Offset? _crosshairPosition;
   PriceData? _hoveredCandle;
   double? _hoveredPrice;
   bool _isRightClickDeleting = false; // 右クリック削除処理中フラグ
   bool _isDownloading = false; // データダウンロード中の状態フラグ
   DrawingTool _activeDrawingTool = DrawingTool.none;
+  bool _isContinuousDrawingEnabled = false;
   CandleAnchor? _pendingDrawingStartAnchor;
   final UserDrawingLayer3Manager _layer3DrawingManager = UserDrawingLayer3Manager();
   final List<CandleAnchor> _pendingPolylinePoints = [];
@@ -213,7 +216,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
 
   void _completeSingleDrawCycle() {
     _resetDrawingSession(
-      clearTool: true,
+      clearTool: !_isContinuousDrawingEnabled,
       clearPendingStart: true,
       clearPolylineDraft: true,
       clearPreview: true,
@@ -497,6 +500,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
               },
               child: LayoutBuilder(builder: (context, constraints) {
                 final currentWidth = constraints.maxWidth;
+                _chartBodyRenderHeight = constraints.maxHeight;
                 // On first build, just store the width.
                 // On subsequent builds, if width changes, schedule an adjustment.
                 if (_lastWidth != 0.0 && _lastWidth != currentWidth) {
@@ -515,17 +519,20 @@ class _CandlestickChartState extends State<CandlestickChart> {
                 
                 return RepaintBoundary(
                   child: Container(
+                    key: _chartBodyKey,
                     width: double.infinity,
                     height: double.infinity,
                     color: widget.backgroundColor ?? Colors.transparent, // 背景色を適用（デフォルトは透明）
                     child: MouseRegion(
                       onExit: _onPointerExit,
                       child: Listener( // For mouse wheel, hover, and right-click
+                        behavior: HitTestBehavior.opaque,
                         onPointerSignal: _onPointerSignal,
                         onPointerHover: _onPointerHover,
                         onPointerMove: _onPointerHover, // Handles touch drag as well
                         onPointerDown: _onPointerDown, // Handle mouse right-click
                         child: GestureDetector( // For pan and scale
+                            behavior: HitTestBehavior.opaque,
                             onScaleUpdate: _onScaleUpdate,
                             onScaleStart: _onScaleStart,
                         onScaleEnd: _onScaleEnd,
@@ -540,7 +547,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
                       maxPrice: maxPrice,
                           startIndex: _controller.startIndex,
                           endIndex: _controller.endIndex,
-                      chartHeight: widget.height - 80, // ヘッダーとフッターの高さを考慮
+                            chartHeight: _chartBodyHeight,
                           chartWidth: currentWidth, // Use width from LayoutBuilder
                           emptySpaceWidth: _controller.emptySpaceWidth,
                           crosshairPosition: _crosshairPosition,
@@ -792,10 +799,22 @@ class _CandlestickChartState extends State<CandlestickChart> {
             ),
 
             if (_activeDrawingTool != DrawingTool.none)
-              SelectableText(
+              Text(
                 '绘制:${_activeDrawingTool.labelZh}',
                 style: TextStyle(color: Colors.greenAccent, fontSize: 10),
               ),
+
+            IconButton(
+              onPressed: () => _setContinuousDrawingEnabled(!_isContinuousDrawingEnabled),
+              icon: Icon(
+                Icons.repeat,
+                color: _isContinuousDrawingEnabled ? Colors.greenAccent : Colors.white,
+                size: 20,
+              ),
+              tooltip: _isContinuousDrawingEnabled ? '连续绘制: 开' : '连续绘制: 关',
+              padding: const EdgeInsets.all(4),
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            ),
 
             if (_activeDrawingTool == DrawingTool.polyline && _pendingPolylinePoints.length >= 2)
               IconButton(
@@ -880,7 +899,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
             const SizedBox(width: 8),
           
           // 表示範囲情報
-          SelectableText(
+          Text(
               '表示: ${_controller.startIndex.clamp(0, widget.data.length) + 1}-${_controller.endIndex.clamp(0, widget.data.length)} / ${widget.data.length}',
             style: TextStyle(
               color: Colors.grey[300],
@@ -891,7 +910,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
             const SizedBox(width: 8),
           
             // 操作説明（簡略版）
-          SelectableText(
+          Text(
               '操作: ドラッグ/←→ スクロール, +/- ズーム, ホイール ズーム, R リセット',
             style: TextStyle(
               color: Colors.grey[400],
@@ -949,9 +968,11 @@ class _CandlestickChartState extends State<CandlestickChart> {
 
       if (_activeDrawingTool != DrawingTool.none) {
         final chartWidth = geometry.width;
+        final int anchorIndex = _xToDataIndex(event.localPosition.dx, chartWidth);
         _previewAnchor = CandleAnchor(
-          index: _xToDataIndex(event.localPosition.dx, chartWidth),
+          index: anchorIndex,
           price: _yToPrice(event.localPosition.dy, geometry.height),
+          timestamp: _indexToTimestamp(anchorIndex),
         );
       } else {
         _previewAnchor = null;
@@ -1109,7 +1130,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              title: SelectableText('チャート設定'),
+              title: Text('チャート設定'),
               content: SizedBox(
                 width: 300,
                 height: 450, // 新オプションを収容するために高さを増加
@@ -1126,7 +1147,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          SelectableText(
+                          Text(
                             'ウェーブポイント設定',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
@@ -1135,8 +1156,8 @@ class _CandlestickChartState extends State<CandlestickChart> {
                           ),
                           SizedBox(height: 8),
                           CheckboxListTile(
-                            title: SelectableText('ウェーブポイントを表示'),
-                            subtitle: SelectableText('高低点マーカーを表示'),
+                            title: Text('ウェーブポイントを表示'),
+                            subtitle: Text('高低点マーカーを表示'),
                             value: _controller.isWavePointsVisible,
                             onChanged: (bool? value) {
                               if (value != null) {
@@ -1147,8 +1168,8 @@ class _CandlestickChartState extends State<CandlestickChart> {
                             activeColor: Colors.blue,
                           ),
                           CheckboxListTile(
-                            title: SelectableText('ウェーブポイント接続線を表示'),
-                            subtitle: SelectableText('高低点を接続して折れ線を形成'),
+                            title: Text('ウェーブポイント接続線を表示'),
+                            subtitle: Text('高低点を接続して折れ線を形成'),
                             value: _controller.isWavePointsLineVisible,
                             onChanged: (bool? value) {
                               if (value != null) {
@@ -1172,7 +1193,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          SelectableText(
+                          Text(
                             '移動平均線設定',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
@@ -1189,14 +1210,14 @@ class _CandlestickChartState extends State<CandlestickChart> {
                                   _controller.setAllMaVisibility(true);
                                   setState(() {});
                                 },
-                                child: SelectableText('全選択'),
+                                child: Text('全選択'),
                               ),
                               ElevatedButton(
                                 onPressed: () {
                                   _controller.setAllMaVisibility(false);
                                   setState(() {});
                                 },
-                                child: SelectableText('全選択解除'),
+                                child: Text('全選択解除'),
                               ),
                             ],
                           ),
@@ -1210,14 +1231,14 @@ class _CandlestickChartState extends State<CandlestickChart> {
                         child: Column(
                           children: _controller.maPeriods.map((period) {
                             return CheckboxListTile(
-                              title: SelectableText(
+                              title: Text(
                                 'MA$period',
                                 style: TextStyle(
                                   color: _getMaColor(period),
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              subtitle: SelectableText(_getMaDescription(period)),
+                              subtitle: Text(_getMaDescription(period)),
                               value: _controller.isMaVisible(period),
                               onChanged: (bool? value) {
                                 if (value != null) {
@@ -1239,7 +1260,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
                   onPressed: () {
                     Navigator.of(context).pop();
                   },
-                  child: SelectableText('キャンセル'),
+                  child: Text('キャンセル'),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -1254,7 +1275,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
                       }
                     });
                   },
-                  child: SelectableText('確定'),
+                  child: Text('確定'),
                 ),
               ],
             );
@@ -1297,6 +1318,19 @@ class _CandlestickChartState extends State<CandlestickChart> {
       }
       if (tool == DrawingTool.none) {
         _clearObjectSelection();
+      }
+    });
+  }
+
+  void _setContinuousDrawingEnabled(bool enabled) {
+    setState(() {
+      _isContinuousDrawingEnabled = enabled;
+      if (!enabled) {
+        _resetDrawingSession(clearTool: true);
+        _clearObjectSelection();
+        if (_controller.isVerticalLineMode) {
+          _controller.toggleVerticalLineMode();
+        }
       }
     });
   }
@@ -1361,7 +1395,12 @@ class _CandlestickChartState extends State<CandlestickChart> {
     _lastTapPosition = null;
   }
 
-  double get _chartBodyHeight => (widget.height - 80).clamp(1.0, double.infinity);
+  double get _chartBodyHeight {
+    if (_chartBodyRenderHeight > 1.0) {
+      return _chartBodyRenderHeight;
+    }
+    return (widget.height - 80).clamp(1.0, double.infinity);
+  }
 
   double _resolveChartWidth() {
     return _lastWidth > 0 ? _lastWidth : MediaQuery.of(context).size.width;
@@ -1491,7 +1530,11 @@ class _CandlestickChartState extends State<CandlestickChart> {
         return;
       }
       setState(() {
-        final anchor = CandleAnchor(index: index, price: price);
+        final anchor = CandleAnchor(
+          index: index,
+          price: price,
+          timestamp: _indexToTimestamp(index),
+        );
         _pendingPolylinePoints.add(anchor);
         _previewAnchor = anchor;
       });
@@ -1500,14 +1543,22 @@ class _CandlestickChartState extends State<CandlestickChart> {
 
     if (_pendingDrawingStartAnchor == null) {
       setState(() {
-        _pendingDrawingStartAnchor = CandleAnchor(index: index, price: price);
+        _pendingDrawingStartAnchor = CandleAnchor(
+          index: index,
+          price: price,
+          timestamp: _indexToTimestamp(index),
+        );
         _clearObjectSelection();
       });
       return;
     }
 
     final anchorStart = _pendingDrawingStartAnchor!;
-    final anchorEnd = CandleAnchor(index: index, price: price);
+    final anchorEnd = CandleAnchor(
+      index: index,
+      price: price,
+      timestamp: _indexToTimestamp(index),
+    );
     final int uniqueId = DateTime.now().microsecondsSinceEpoch;
 
     setState(() {
@@ -1590,6 +1641,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
   ) {
     return ChartObjectInteractionService.hitTest(
       objects: _buildObjectStickers(),
+      data: widget.data,
       x: x,
       y: y,
       endIndex: _controller.endIndex,
@@ -1608,6 +1660,13 @@ class _CandlestickChartState extends State<CandlestickChart> {
 
   int _clampDataIndex(int index) => index.clamp(0, _maxDataIndex);
 
+  int? _indexToTimestamp(int index) {
+    if (widget.data.isEmpty) return null;
+    final int safeIndex = _clampDataIndex(index);
+    if (safeIndex < 0 || safeIndex >= widget.data.length) return null;
+    return widget.data[safeIndex].timestamp;
+  }
+
   void _updateDraggingObject(Offset localPosition, double chartWidth, double chartHeight) {
     final String? id = _draggingObjectId;
     final Type? objectType = _draggingObjectType;
@@ -1615,6 +1674,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
     if (id == null || objectType == null || target == null) return;
 
     final int newIndex = _xToDataIndex(localPosition.dx, chartWidth);
+    final int? newTimestamp = _indexToTimestamp(newIndex);
     final double newPrice = _yToPrice(localPosition.dy, chartHeight);
 
     final Offset? previous = _lastDragPosition;
@@ -1635,10 +1695,12 @@ class _CandlestickChartState extends State<CandlestickChart> {
         objectType: objectType,
         target: target,
         newIndex: newIndex,
+        newTimestamp: newTimestamp,
         newPrice: newPrice,
         indexDelta: indexDelta,
         priceDelta: priceDelta,
         clampDataIndex: _clampDataIndex,
+        indexToTimestamp: _indexToTimestamp,
       );
 
       _lastDragPosition = localPosition;
@@ -1706,6 +1768,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
         id: id,
         factor: factor,
         clampDataIndex: _clampDataIndex,
+        indexToTimestamp: _indexToTimestamp,
       );
     });
   }
@@ -1718,6 +1781,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
         id: id,
         deltaDegrees: deltaDegrees,
         clampDataIndex: _clampDataIndex,
+        indexToTimestamp: _indexToTimestamp,
       );
     });
   }

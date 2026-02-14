@@ -73,6 +73,31 @@ class ChartObjectRenderContext {
     return result;
   }
 
+  int? resolveAnchorIndex(CandleAnchor anchor) {
+    if (anchor.timestamp != null) {
+      final int? resolved = findKlineIndexByTimestamp(anchor.timestamp!);
+      if (resolved != null) return resolved;
+    }
+    if (anchor.index < 0 || anchor.index >= data.length) {
+      return null;
+    }
+    return anchor.index;
+  }
+
+  int? resolveIndexByTimestampOrFallback({
+    required int? timestamp,
+    required int fallbackIndex,
+  }) {
+    if (timestamp != null) {
+      final int? resolved = findKlineIndexByTimestamp(timestamp);
+      if (resolved != null) return resolved;
+    }
+    if (fallbackIndex < 0 || fallbackIndex >= data.length) {
+      return null;
+    }
+    return fallbackIndex;
+  }
+
   Color parseHexColor(String colorString, Color fallback) {
     try {
       return Color(int.parse(colorString.replaceFirst('#', '0xFF')));
@@ -129,8 +154,18 @@ class TrendLineObjectRenderer extends ChartObjectRenderer<TrendLineObject> {
 
   @override
   void render(ChartObjectRenderContext context, TrendLineObject object) {
-    final startX = context.candleXByIndex(object.startIndex);
-    final endX = context.candleXByIndex(object.endIndex);
+    final int? startIndex = context.resolveIndexByTimestampOrFallback(
+      timestamp: object.startTimestamp,
+      fallbackIndex: object.startIndex,
+    );
+    final int? endIndex = context.resolveIndexByTimestampOrFallback(
+      timestamp: object.endTimestamp,
+      fallbackIndex: object.endIndex,
+    );
+    if (startIndex == null || endIndex == null) return;
+
+    final startX = context.candleXByIndex(startIndex);
+    final endX = context.candleXByIndex(endIndex);
     final startY = context.priceToY(object.startPrice);
     final endY = context.priceToY(object.endPrice);
 
@@ -332,9 +367,15 @@ class WavePolylineObjectRenderer extends ChartObjectRenderer<WavePolylineObject>
     CandleAnchor? previous;
     for (final point in object.points) {
       if (previous != null) {
-        final x1 = context.candleXByIndex(previous.index);
+        final int? prevIndex = context.resolveAnchorIndex(previous);
+        final int? pointIndex = context.resolveAnchorIndex(point);
+        if (prevIndex == null || pointIndex == null) {
+          previous = point;
+          continue;
+        }
+        final x1 = context.candleXByIndex(prevIndex);
         final y1 = context.priceToY(previous.price);
-        final x2 = context.candleXByIndex(point.index);
+        final x2 = context.candleXByIndex(pointIndex);
         final y2 = context.priceToY(point.price);
         context.canvas.drawLine(Offset(x1, y1), Offset(x2, y2), paint);
       }
@@ -397,8 +438,12 @@ class FibonacciRetracementObjectRenderer extends ChartObjectRenderer<FibonacciRe
 
   @override
   void render(ChartObjectRenderContext context, FibonacciRetracementObject object) {
-    final startX = context.candleXByIndex(object.start.index);
-    final endX = context.candleXByIndex(object.end.index);
+    final int? startIndex = context.resolveAnchorIndex(object.start);
+    final int? endIndex = context.resolveAnchorIndex(object.end);
+    if (startIndex == null || endIndex == null) return;
+
+    final startX = context.candleXByIndex(startIndex);
+    final endX = context.candleXByIndex(endIndex);
     final minX = startX < endX ? startX : endX;
     final maxX = startX < endX ? endX : startX;
 
@@ -473,8 +518,12 @@ class TrendAnalysisLineObjectRenderer
 
   @override
   void render(ChartObjectRenderContext context, TrendAnalysisLineObject object) {
-    final startX = context.candleXByIndex(object.start.index);
-    final endX = context.candleXByIndex(object.end.index);
+    final int? startIndex = context.resolveAnchorIndex(object.start);
+    final int? endIndex = context.resolveAnchorIndex(object.end);
+    if (startIndex == null || endIndex == null) return;
+
+    final startX = context.candleXByIndex(startIndex);
+    final endX = context.candleXByIndex(endIndex);
     final startY = context.priceToY(object.start.price);
     final endY = context.priceToY(object.end.price);
 
@@ -526,7 +575,9 @@ class SmoothTrendPolylineObjectRenderer
     final path = Path();
     var first = true;
     for (final point in object.points) {
-      final x = context.candleXByIndex(point.index);
+      final int? index = context.resolveAnchorIndex(point);
+      if (index == null) continue;
+      final x = context.candleXByIndex(index);
       if (x < 0) continue;
       final y = context.priceToY(point.price);
       if (first) {
@@ -560,7 +611,9 @@ class FittedCurveObjectRenderer extends ChartObjectRenderer<FittedCurveObject> {
     final path = Path();
     var first = true;
     for (final point in object.points) {
-      final x = context.candleXByIndex(point.index);
+      final int? index = context.resolveAnchorIndex(point);
+      if (index == null) continue;
+      final x = context.candleXByIndex(index);
       if (x < 0) continue;
       final y = context.priceToY(point.price);
       if (first) {
@@ -582,9 +635,13 @@ class CircleObjectRenderer extends ChartObjectRenderer<CircleObject> {
 
   @override
   void render(ChartObjectRenderContext context, CircleObject object) {
-    final x1 = context.candleXByIndex(object.start.index);
+    final int? startIndex = context.resolveAnchorIndex(object.start);
+    final int? endIndex = context.resolveAnchorIndex(object.end);
+    if (startIndex == null || endIndex == null) return;
+
+    final x1 = context.candleXByIndex(startIndex);
     final y1 = context.priceToY(object.start.price);
-    final x2 = context.candleXByIndex(object.end.index);
+    final x2 = context.candleXByIndex(endIndex);
     final y2 = context.priceToY(object.end.price);
 
     final center = Offset((x1 + x2) / 2, (y1 + y2) / 2);
@@ -605,9 +662,13 @@ class RectangleObjectRenderer extends ChartObjectRenderer<RectangleObject> {
 
   @override
   void render(ChartObjectRenderContext context, RectangleObject object) {
-    final x1 = context.candleXByIndex(object.start.index);
+    final int? startIndex = context.resolveAnchorIndex(object.start);
+    final int? endIndex = context.resolveAnchorIndex(object.end);
+    if (startIndex == null || endIndex == null) return;
+
+    final x1 = context.candleXByIndex(startIndex);
     final y1 = context.priceToY(object.start.price);
-    final x2 = context.candleXByIndex(object.end.index);
+    final x2 = context.candleXByIndex(endIndex);
     final y2 = context.priceToY(object.end.price);
 
     final rect = Rect.fromPoints(Offset(x1, y1), Offset(x2, y2));
@@ -644,7 +705,9 @@ class FreePolylineObjectRenderer extends ChartObjectRenderer<FreePolylineObject>
     final path = Path();
     var first = true;
     for (final point in object.points) {
-      final x = context.candleXByIndex(point.index);
+      final int? index = context.resolveAnchorIndex(point);
+      if (index == null) continue;
+      final x = context.candleXByIndex(index);
       final y = context.priceToY(point.price);
       if (first) {
         path.moveTo(x, y);

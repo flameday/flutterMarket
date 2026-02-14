@@ -57,16 +57,19 @@ class UserDrawingLayer3Manager {
     required String id,
     required double factor,
     required int Function(int index) clampDataIndex,
+    required int? Function(int index) indexToTimestamp,
   }) {
     return updateTrendLineById(id, (line) {
       final double dx = (line.endIndex - line.startIndex).toDouble();
       final double dy = line.endPrice - line.startPrice;
       final double newEndIndex = line.startIndex + dx * factor;
       final double newEndPrice = line.startPrice + dy * factor;
+      final int nextEndIndex = clampDataIndex(newEndIndex.round());
       return _copyTrendLine(
         line,
-        endIndex: clampDataIndex(newEndIndex.round()),
+        endIndex: nextEndIndex,
         endPrice: newEndPrice,
+        endTimestamp: indexToTimestamp(nextEndIndex),
       );
     });
   }
@@ -75,6 +78,7 @@ class UserDrawingLayer3Manager {
     required String id,
     required double deltaDegrees,
     required int Function(int index) clampDataIndex,
+    required int? Function(int index) indexToTimestamp,
   }) {
     return updateTrendLineById(id, (line) {
       final double dx = (line.endIndex - line.startIndex).toDouble();
@@ -86,10 +90,12 @@ class UserDrawingLayer3Manager {
       final double newDx = math.cos(angle) * length;
       final double newDy = math.sin(angle) * length;
 
+      final int nextEndIndex = clampDataIndex((line.startIndex + newDx).round());
       return _copyTrendLine(
         line,
-        endIndex: clampDataIndex((line.startIndex + newDx).round()),
+        endIndex: nextEndIndex,
         endPrice: line.startPrice + newDy,
+        endTimestamp: indexToTimestamp(nextEndIndex),
       );
     });
   }
@@ -118,20 +124,24 @@ class UserDrawingLayer3Manager {
     required Type objectType,
     required ObjectDragTarget target,
     required int newIndex,
+    required int? newTimestamp,
     required double newPrice,
     required int indexDelta,
     required double priceDelta,
     required int Function(int index) clampDataIndex,
+    required int? Function(int index) indexToTimestamp,
   }) {
     if (objectType == TrendLineObject) {
       _updateTrendLineDuringDrag(
         id: id,
         target: target,
         newIndex: newIndex,
+        newTimestamp: newTimestamp,
         newPrice: newPrice,
         indexDelta: indexDelta,
         priceDelta: priceDelta,
         clampDataIndex: clampDataIndex,
+        indexToTimestamp: indexToTimestamp,
       );
       return;
     }
@@ -141,10 +151,12 @@ class UserDrawingLayer3Manager {
         id: id,
         target: target,
         newIndex: newIndex,
+        newTimestamp: newTimestamp,
         newPrice: newPrice,
         indexDelta: indexDelta,
         priceDelta: priceDelta,
         clampDataIndex: clampDataIndex,
+        indexToTimestamp: indexToTimestamp,
       );
       return;
     }
@@ -154,10 +166,12 @@ class UserDrawingLayer3Manager {
         id: id,
         target: target,
         newIndex: newIndex,
+        newTimestamp: newTimestamp,
         newPrice: newPrice,
         indexDelta: indexDelta,
         priceDelta: priceDelta,
         clampDataIndex: clampDataIndex,
+        indexToTimestamp: indexToTimestamp,
       );
       return;
     }
@@ -167,10 +181,12 @@ class UserDrawingLayer3Manager {
         id: id,
         target: target,
         newIndex: newIndex,
+        newTimestamp: newTimestamp,
         newPrice: newPrice,
         indexDelta: indexDelta,
         priceDelta: priceDelta,
         clampDataIndex: clampDataIndex,
+        indexToTimestamp: indexToTimestamp,
       );
       return;
     }
@@ -182,6 +198,7 @@ class UserDrawingLayer3Manager {
         indexDelta: indexDelta,
         priceDelta: priceDelta,
         clampDataIndex: clampDataIndex,
+        indexToTimestamp: indexToTimestamp,
       );
     }
   }
@@ -190,10 +207,12 @@ class UserDrawingLayer3Manager {
     required String id,
     required ObjectDragTarget target,
     required int newIndex,
+    required int? newTimestamp,
     required double newPrice,
     required int indexDelta,
     required double priceDelta,
     required int Function(int index) clampDataIndex,
+    required int? Function(int index) indexToTimestamp,
   }) {
     final int idx = trendLines.indexWhere((line) => line.id == id);
     if (idx < 0) return;
@@ -204,8 +223,10 @@ class UserDrawingLayer3Manager {
         id: line.id,
         startIndex: newIndex,
         startPrice: newPrice,
+        startTimestamp: newTimestamp ?? indexToTimestamp(newIndex),
         endIndex: line.endIndex,
         endPrice: line.endPrice,
+        endTimestamp: line.endTimestamp,
         color: line.color,
         width: line.width,
         selected: line.selected,
@@ -217,8 +238,10 @@ class UserDrawingLayer3Manager {
         id: line.id,
         startIndex: line.startIndex,
         startPrice: line.startPrice,
+        startTimestamp: line.startTimestamp,
         endIndex: newIndex,
         endPrice: newPrice,
+        endTimestamp: newTimestamp ?? indexToTimestamp(newIndex),
         color: line.color,
         width: line.width,
         selected: line.selected,
@@ -226,12 +249,16 @@ class UserDrawingLayer3Manager {
         visible: line.visible,
       );
     } else {
+      final int nextStartIndex = clampDataIndex(line.startIndex + indexDelta);
+      final int nextEndIndex = clampDataIndex(line.endIndex + indexDelta);
       trendLines[idx] = TrendLineObject(
         id: line.id,
-        startIndex: clampDataIndex(line.startIndex + indexDelta),
+        startIndex: nextStartIndex,
         startPrice: line.startPrice + priceDelta,
-        endIndex: clampDataIndex(line.endIndex + indexDelta),
+        startTimestamp: indexToTimestamp(nextStartIndex),
+        endIndex: nextEndIndex,
         endPrice: line.endPrice + priceDelta,
+        endTimestamp: indexToTimestamp(nextEndIndex),
         color: line.color,
         width: line.width,
         selected: line.selected,
@@ -245,19 +272,26 @@ class UserDrawingLayer3Manager {
     required String id,
     required ObjectDragTarget target,
     required int newIndex,
+    required int? newTimestamp,
     required double newPrice,
     required int indexDelta,
     required double priceDelta,
     required int Function(int index) clampDataIndex,
+    required int? Function(int index) indexToTimestamp,
   }) {
     final int idx = circleObjects.indexWhere((item) => item.id == id);
     if (idx < 0) return;
 
     final object = circleObjects[idx];
     if (target == ObjectDragTarget.start) {
+      final int nextIndex = clampDataIndex(newIndex);
       circleObjects[idx] = CircleObject(
         id: object.id,
-        start: CandleAnchor(index: clampDataIndex(newIndex), price: newPrice),
+        start: CandleAnchor(
+          index: nextIndex,
+          price: newPrice,
+          timestamp: newTimestamp ?? indexToTimestamp(nextIndex),
+        ),
         end: object.end,
         color: object.color,
         width: object.width,
@@ -265,25 +299,34 @@ class UserDrawingLayer3Manager {
         visible: object.visible,
       );
     } else if (target == ObjectDragTarget.end) {
+      final int nextIndex = clampDataIndex(newIndex);
       circleObjects[idx] = CircleObject(
         id: object.id,
         start: object.start,
-        end: CandleAnchor(index: clampDataIndex(newIndex), price: newPrice),
+        end: CandleAnchor(
+          index: nextIndex,
+          price: newPrice,
+          timestamp: newTimestamp ?? indexToTimestamp(nextIndex),
+        ),
         color: object.color,
         width: object.width,
         layer: object.layer,
         visible: object.visible,
       );
     } else {
+      final int nextStartIndex = clampDataIndex(object.start.index + indexDelta);
+      final int nextEndIndex = clampDataIndex(object.end.index + indexDelta);
       circleObjects[idx] = CircleObject(
         id: object.id,
         start: CandleAnchor(
-          index: clampDataIndex(object.start.index + indexDelta),
+          index: nextStartIndex,
           price: object.start.price + priceDelta,
+          timestamp: indexToTimestamp(nextStartIndex),
         ),
         end: CandleAnchor(
-          index: clampDataIndex(object.end.index + indexDelta),
+          index: nextEndIndex,
           price: object.end.price + priceDelta,
+          timestamp: indexToTimestamp(nextEndIndex),
         ),
         color: object.color,
         width: object.width,
@@ -297,19 +340,26 @@ class UserDrawingLayer3Manager {
     required String id,
     required ObjectDragTarget target,
     required int newIndex,
+    required int? newTimestamp,
     required double newPrice,
     required int indexDelta,
     required double priceDelta,
     required int Function(int index) clampDataIndex,
+    required int? Function(int index) indexToTimestamp,
   }) {
     final int idx = rectangleObjects.indexWhere((item) => item.id == id);
     if (idx < 0) return;
 
     final object = rectangleObjects[idx];
     if (target == ObjectDragTarget.start) {
+      final int nextIndex = clampDataIndex(newIndex);
       rectangleObjects[idx] = RectangleObject(
         id: object.id,
-        start: CandleAnchor(index: clampDataIndex(newIndex), price: newPrice),
+        start: CandleAnchor(
+          index: nextIndex,
+          price: newPrice,
+          timestamp: newTimestamp ?? indexToTimestamp(nextIndex),
+        ),
         end: object.end,
         color: object.color,
         width: object.width,
@@ -318,10 +368,15 @@ class UserDrawingLayer3Manager {
         visible: object.visible,
       );
     } else if (target == ObjectDragTarget.end) {
+      final int nextIndex = clampDataIndex(newIndex);
       rectangleObjects[idx] = RectangleObject(
         id: object.id,
         start: object.start,
-        end: CandleAnchor(index: clampDataIndex(newIndex), price: newPrice),
+        end: CandleAnchor(
+          index: nextIndex,
+          price: newPrice,
+          timestamp: newTimestamp ?? indexToTimestamp(nextIndex),
+        ),
         color: object.color,
         width: object.width,
         fillAlpha: object.fillAlpha,
@@ -329,15 +384,19 @@ class UserDrawingLayer3Manager {
         visible: object.visible,
       );
     } else {
+      final int nextStartIndex = clampDataIndex(object.start.index + indexDelta);
+      final int nextEndIndex = clampDataIndex(object.end.index + indexDelta);
       rectangleObjects[idx] = RectangleObject(
         id: object.id,
         start: CandleAnchor(
-          index: clampDataIndex(object.start.index + indexDelta),
+          index: nextStartIndex,
           price: object.start.price + priceDelta,
+          timestamp: indexToTimestamp(nextStartIndex),
         ),
         end: CandleAnchor(
-          index: clampDataIndex(object.end.index + indexDelta),
+          index: nextEndIndex,
           price: object.end.price + priceDelta,
+          timestamp: indexToTimestamp(nextEndIndex),
         ),
         color: object.color,
         width: object.width,
@@ -352,19 +411,26 @@ class UserDrawingLayer3Manager {
     required String id,
     required ObjectDragTarget target,
     required int newIndex,
+    required int? newTimestamp,
     required double newPrice,
     required int indexDelta,
     required double priceDelta,
     required int Function(int index) clampDataIndex,
+    required int? Function(int index) indexToTimestamp,
   }) {
     final int idx = fibonacciObjects.indexWhere((item) => item.id == id);
     if (idx < 0) return;
 
     final object = fibonacciObjects[idx];
     if (target == ObjectDragTarget.start) {
+      final int nextIndex = clampDataIndex(newIndex);
       fibonacciObjects[idx] = FibonacciRetracementObject(
         id: object.id,
-        start: CandleAnchor(index: clampDataIndex(newIndex), price: newPrice),
+        start: CandleAnchor(
+          index: nextIndex,
+          price: newPrice,
+          timestamp: newTimestamp ?? indexToTimestamp(nextIndex),
+        ),
         end: object.end,
         levels: object.levels,
         color: object.color,
@@ -373,10 +439,15 @@ class UserDrawingLayer3Manager {
         visible: object.visible,
       );
     } else if (target == ObjectDragTarget.end) {
+      final int nextIndex = clampDataIndex(newIndex);
       fibonacciObjects[idx] = FibonacciRetracementObject(
         id: object.id,
         start: object.start,
-        end: CandleAnchor(index: clampDataIndex(newIndex), price: newPrice),
+        end: CandleAnchor(
+          index: nextIndex,
+          price: newPrice,
+          timestamp: newTimestamp ?? indexToTimestamp(nextIndex),
+        ),
         levels: object.levels,
         color: object.color,
         width: object.width,
@@ -384,15 +455,19 @@ class UserDrawingLayer3Manager {
         visible: object.visible,
       );
     } else {
+      final int nextStartIndex = clampDataIndex(object.start.index + indexDelta);
+      final int nextEndIndex = clampDataIndex(object.end.index + indexDelta);
       fibonacciObjects[idx] = FibonacciRetracementObject(
         id: object.id,
         start: CandleAnchor(
-          index: clampDataIndex(object.start.index + indexDelta),
+          index: nextStartIndex,
           price: object.start.price + priceDelta,
+          timestamp: indexToTimestamp(nextStartIndex),
         ),
         end: CandleAnchor(
-          index: clampDataIndex(object.end.index + indexDelta),
+          index: nextEndIndex,
           price: object.end.price + priceDelta,
+          timestamp: indexToTimestamp(nextEndIndex),
         ),
         levels: object.levels,
         color: object.color,
@@ -409,6 +484,7 @@ class UserDrawingLayer3Manager {
     required int indexDelta,
     required double priceDelta,
     required int Function(int index) clampDataIndex,
+    required int? Function(int index) indexToTimestamp,
   }) {
     if (target != ObjectDragTarget.body) return;
 
@@ -420,10 +496,14 @@ class UserDrawingLayer3Manager {
       id: object.id,
       points: object.points
           .map(
-            (p) => CandleAnchor(
-              index: clampDataIndex(p.index + indexDelta),
-              price: p.price + priceDelta,
-            ),
+            (p) {
+              final int nextIndex = clampDataIndex(p.index + indexDelta);
+              return CandleAnchor(
+                index: nextIndex,
+                price: p.price + priceDelta,
+                timestamp: indexToTimestamp(nextIndex),
+              );
+            },
           )
           .toList(),
       color: object.color,
@@ -443,15 +523,19 @@ class UserDrawingLayer3Manager {
     TrendLineObject line, {
     int? startIndex,
     double? startPrice,
+    int? startTimestamp,
     int? endIndex,
     double? endPrice,
+    int? endTimestamp,
   }) {
     return TrendLineObject(
       id: line.id,
       startIndex: startIndex ?? line.startIndex,
       startPrice: startPrice ?? line.startPrice,
+      startTimestamp: startTimestamp ?? line.startTimestamp,
       endIndex: endIndex ?? line.endIndex,
       endPrice: endPrice ?? line.endPrice,
+      endTimestamp: endTimestamp ?? line.endTimestamp,
       color: line.color,
       width: line.width,
       selected: line.selected,

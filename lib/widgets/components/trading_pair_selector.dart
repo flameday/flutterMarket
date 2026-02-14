@@ -52,7 +52,7 @@ class TradingPairSelector extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        SelectableText(
+                        Text(
                           pair.displayName,
                           style: const TextStyle(
                             color: Colors.white,
@@ -60,7 +60,7 @@ class TradingPairSelector extends StatelessWidget {
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                        SelectableText(
+                        Text(
                           pair.description,
                           style: TextStyle(
                             color: Colors.grey[400],
@@ -76,7 +76,7 @@ class TradingPairSelector extends StatelessWidget {
                       color: _getCategoryColor(pair.category),
                       borderRadius: BorderRadius.circular(4),
                     ),
-                    child: SelectableText(
+                    child: Text(
                       pair.category,
                       style: const TextStyle(
                         color: Colors.white,

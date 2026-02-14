@@ -661,7 +661,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
           items: TradingPair.values.map<DropdownMenuItem<TradingPair>>((TradingPair pair) {
             return DropdownMenuItem<TradingPair>(
               value: pair,
-              child: SelectableText(
+              child: Text(
                 pair.displayName,
                 style: const TextStyle(fontSize: 16),
               ),
@@ -687,7 +687,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
             items: Timeframe.values.map<DropdownMenuItem<Timeframe>>((Timeframe timeframe) {
               return DropdownMenuItem<Timeframe>(
                 value: timeframe,
-                child: SelectableText(
+                child: Text(
                   timeframe.displayName,
                   style: const TextStyle(fontSize: 16),
                 ),
@@ -748,7 +748,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                 }
               },
             ),
-            SelectableText('MA$period'),
+            Text('MA$period'),
             const SizedBox(width: 8),
             GestureDetector(
               onTap: () async {
@@ -817,7 +817,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: SelectableText('MA$period の色と透明度を設定'),
+              title: Text('MA$period の色と透明度を設定'),
               content: SizedBox(
                 width: 350,
                 height: 500,
@@ -826,7 +826,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                     // 色選択グリッド
-                    const SelectableText('色を選択:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('色を選択:', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     SizedBox(
                       height: 200,
@@ -868,11 +868,11 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                     const SizedBox(height: 16),
                     
                     // 透明度スライダー
-                    const SelectableText('透明度:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('透明度:', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const SelectableText('0%'),
+                        const Text('0%'),
                         Expanded(
                           child: Slider(
                             value: selectedAlpha,
@@ -886,13 +886,13 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                             },
                           ),
                         ),
-                        SelectableText('${(selectedAlpha * 100).round()}%'),
+                        Text('${(selectedAlpha * 100).round()}%'),
                       ],
                     ),
                     const SizedBox(height: 16),
                     
                     // プレビュー
-                    const SelectableText('プレビュー:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('プレビュー:', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Container(
                       width: double.infinity,
@@ -903,7 +903,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                         border: Border.all(color: Colors.grey.shade300),
                       ),
                       child: Center(
-                        child: SelectableText(
+                        child: Text(
                           'MA$period',
                           style: const TextStyle(
                             color: Colors.white,
@@ -922,7 +922,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                     const SizedBox(height: 16),
                     
                     // 手動色入力
-                    const SelectableText('手動色入力 (例: #FF0000):', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('手動色入力 (例: #FF0000):', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     TextField(
                       decoration: const InputDecoration(
@@ -950,7 +950,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
               actions: [
                 TextButton(
                   onPressed: () => Navigator.of(context).pop(),
-                  child: const SelectableText('キャンセル'),
+                  child: const Text('キャンセル'),
                 ),
                 ElevatedButton(
                   onPressed: () {
@@ -967,7 +967,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                     _saveSettings();
                     Navigator.of(context).pop();
                   },
-                  child: const SelectableText('適用'),
+                  child: const Text('適用'),
                 ),
               ],
             );
@@ -1004,7 +1004,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
       builder: (BuildContext context) {
         return StatefulBuilder(builder: (context, dialogSetState) {
           return AlertDialog(
-            title: const SelectableText('アプリケーション設定'),
+            title: const Text('アプリケーション設定'),
             content: SizedBox(
               width: 400,
               child: SingleChildScrollView(
@@ -1013,7 +1013,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // デフォルト時間周期設定
-                    const SelectableText('デフォルト時間周期:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('デフォルト時間周期:', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<Timeframe>(
                       initialValue: _appSettings?.defaultTimeframe ?? _selectedTimeframe,
@@ -1024,7 +1024,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                       items: Timeframe.values.map<DropdownMenuItem<Timeframe>>((Timeframe timeframe) {
                         return DropdownMenuItem<Timeframe>(
                           value: timeframe,
-                          child: SelectableText(timeframe.displayName),
+                          child: Text(timeframe.displayName),
                         );
                       }).toList(),
                       onChanged: (Timeframe? newValue) {
@@ -1053,7 +1053,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                             }
                           },
                         ),
-                        const SelectableText('自動更新を有効にする'),
+                        const Text('自動更新を有効にする'),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -1073,7 +1073,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                             }
                           },
                         ),
-                        const SelectableText('ウェーブポイントを表示'),
+                        const Text('ウェーブポイントを表示'),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -1092,7 +1092,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                             }
                           },
                         ),
-                        const SelectableText('ウェーブポイント接続線を表示'),
+                        const Text('ウェーブポイント接続線を表示'),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -1110,20 +1110,20 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                             }
                           },
                         ),
-                        const SelectableText('右上の O/H/L/C を表示'),
+                        const Text('右上の O/H/L/C を表示'),
                       ],
                     ),
                     const SizedBox(height: 16),
 
                     // 移動平均線設定
-                    const SelectableText('移動平均線表示設定:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('移動平均線表示設定:', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     ..._buildMaVisibilitySettings(dialogSetState),
                     const SizedBox(height: 16),
 
 
                     // トレンドフィルタリング設定
-                    const SelectableText('トレンドフィルタリング設定:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('トレンドフィルタリング設定:', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -1139,13 +1139,13 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                             }
                           },
                         ),
-                        const SelectableText('トレンドフィルタリングを有効にする'),
+                        const Text('トレンドフィルタリングを有効にする'),
                       ],
                     ),
                     const SizedBox(height: 8),
 
                     // 3次曲线设置
-                    const SelectableText('3次曲线设置:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('3次曲线设置:', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -1161,13 +1161,13 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                         }
                       },
                         ),
-                        const SelectableText('显示3次曲线'),
+                        const Text('显示3次曲线'),
                       ],
                     ),
                     const SizedBox(height: 8),
 
                     // 60均线过滤曲线设置
-                    const SelectableText('60均线过滤曲线设置:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('60均线过滤曲线设置:', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
@@ -1183,16 +1183,16 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                         }
                       },
                         ),
-                        const SelectableText('显示60均线过滤曲线'),
+                        const Text('显示60均线过滤曲线'),
                       ],
                     ),
                     const SizedBox(height: 8),
                     
                     // 近い距離の閾値
-                    const SelectableText('近い距離の閾値:'),
+                    const Text('近い距離の閾値:'),
                     Row(
                       children: [
-                        const SelectableText('0.1%'),
+                        const Text('0.1%'),
                         Expanded(
                           child: Slider(
                             value: (_appSettings?.trendFilteringNearThreshold ?? 0.01) * 100,
@@ -1208,15 +1208,15 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                             },
                           ),
                         ),
-                        SelectableText('${((_appSettings?.trendFilteringNearThreshold ?? 0.01) * 100).toStringAsFixed(1)}%'),
+                        Text('${((_appSettings?.trendFilteringNearThreshold ?? 0.01) * 100).toStringAsFixed(1)}%'),
                       ],
                     ),
                     
                     // 遠い距離の閾値
-                    const SelectableText('遠い距離の閾値:'),
+                    const Text('遠い距離の閾値:'),
                     Row(
                       children: [
-                        const SelectableText('0.5%'),
+                        const Text('0.5%'),
                         Expanded(
                           child: Slider(
                             value: (_appSettings?.trendFilteringFarThreshold ?? 0.02) * 100,
@@ -1232,15 +1232,15 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                             },
                           ),
                         ),
-                        SelectableText('${((_appSettings?.trendFilteringFarThreshold ?? 0.02) * 100).toStringAsFixed(1)}%'),
+                        Text('${((_appSettings?.trendFilteringFarThreshold ?? 0.02) * 100).toStringAsFixed(1)}%'),
                       ],
                     ),
                     
                     // 最低バー間隔
-                    const SelectableText('最低バー間隔:'),
+                    const Text('最低バー間隔:'),
                     Row(
                       children: [
-                        const SelectableText('1'),
+                        const Text('1'),
                         Expanded(
                           child: Slider(
                             value: (_appSettings?.trendFilteringMinGapBars ?? 5).toDouble(),
@@ -1256,17 +1256,17 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                             },
                           ),
                         ),
-                        SelectableText('${_appSettings?.trendFilteringMinGapBars ?? 5}バー'),
+                        Text('${_appSettings?.trendFilteringMinGapBars ?? 5}バー'),
                       ],
                     ),
                     const SizedBox(height: 16),
 
                     // K線データ制限設定
-                    const SelectableText('K線データ制限設定:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('K線データ制限設定:', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     Row(
                       children: [
-                        const SelectableText('読み込みK線数: '),
+                        const Text('読み込みK線数: '),
                         const SizedBox(width: 8),
                         SizedBox(
                           width: 120,
@@ -1288,7 +1288,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                           ),
                         ),
                         const SizedBox(width: 8),
-                        const SelectableText('条'),
+                        const Text('条'),
                       ],
                     ),
                     const SizedBox(height: 16),
@@ -1330,13 +1330,13 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                     );
                   }
                 },
-                child: const SelectableText('リセット'),
+                child: const Text('リセット'),
               ),
               TextButton(
                 onPressed: () {
                   Navigator.of(context).pop();
                 },
-                child: const SelectableText('キャンセル'),
+                child: const Text('キャンセル'),
               ),
               ElevatedButton(
                 onPressed: () async {
@@ -1376,7 +1376,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                     );
                   }
                 },
-                child: const SelectableText('保存'),
+                child: const Text('保存'),
               ),
             ],
           );
@@ -1396,14 +1396,14 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
         return StatefulBuilder(
           builder: (context, setState) {
             return AlertDialog(
-              title: const SelectableText('时间导航'),
+              title: const Text('时间导航'),
               content: SizedBox(
                 width: 400,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     // 快速导航按钮
-                    const SelectableText('快速导航:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('快速导航:', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -1414,7 +1414,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                             _navigateToTime('start');
                           },
                           icon: const Icon(Icons.first_page),
-                          label: const SelectableText('最开始'),
+                          label: const Text('最开始'),
                         ),
                         ElevatedButton.icon(
                           onPressed: () {
@@ -1422,20 +1422,20 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                             _navigateToTime('end');
                           },
                           icon: const Icon(Icons.last_page),
-                          label: const SelectableText('最末尾'),
+                          label: const Text('最末尾'),
                         ),
                       ],
                     ),
                     const SizedBox(height: 24),
                     
                     // 自定义时间选择
-                    const SelectableText('自定义时间:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const Text('自定义时间:', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
                     
                     // 日期选择
                     ListTile(
-                      title: const SelectableText('选择日期'),
-                      subtitle: SelectableText('${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}'),
+                      title: const Text('选择日期'),
+                      subtitle: Text('${selectedDate.year}-${selectedDate.month.toString().padLeft(2, '0')}-${selectedDate.day.toString().padLeft(2, '0')}'),
                       trailing: const Icon(Icons.calendar_today),
                       onTap: () async {
                         final DateTime? picked = await showDatePicker(
@@ -1454,8 +1454,8 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                     
                     // 时间选择
                     ListTile(
-                      title: const SelectableText('选择时间'),
-                      subtitle: SelectableText('${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}'),
+                      title: const Text('选择时间'),
+                      subtitle: Text('${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}'),
                       trailing: const Icon(Icons.access_time),
                       onTap: () async {
                         final TimeOfDay? picked = await showTimePicker(
@@ -1479,7 +1479,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                         _navigateToCustomTime(selectedDate, selectedTime);
                       },
                       icon: const Icon(Icons.navigation),
-                      label: const SelectableText('跳转到指定时间'),
+                      label: const Text('跳转到指定时间'),
                     ),
                   ],
                 ),
@@ -1489,7 +1489,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                   onPressed: () {
                     Navigator.of(context).pop();
                   },
-                  child: const SelectableText('取消'),
+                  child: const Text('取消'),
                 ),
               ],
             );
@@ -1889,7 +1889,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _loadData,
-              child: const SelectableText('再試行'),
+              child: const Text('再試行'),
             ),
           ],
         ),

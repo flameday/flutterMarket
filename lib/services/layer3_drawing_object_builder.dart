@@ -16,8 +16,10 @@ class Layer3DrawingObjectBuilder {
           id: uniqueId.toString(),
           startIndex: start.index,
           startPrice: start.price,
+          startTimestamp: start.timestamp,
           endIndex: end.index,
           endPrice: end.price,
+          endTimestamp: end.timestamp,
           layer: ChartObjectLayer.interaction,
         );
       case DrawingTool.circle:
@@ -58,8 +60,10 @@ class Layer3DrawingObjectBuilder {
           id: 'trend-preview',
           startIndex: start.index,
           startPrice: start.price,
+          startTimestamp: start.timestamp,
           endIndex: preview.index,
           endPrice: preview.price,
+          endTimestamp: preview.timestamp,
           color: '#66FFD700',
           layer: ChartObjectLayer.interaction,
         );
@@ -117,7 +121,9 @@ class Layer3DrawingObjectBuilder {
     final previewPoints = List<CandleAnchor>.from(pendingPoints);
     if (preview != null) {
       final last = previewPoints.last;
-      if (last.index != preview.index || (last.price - preview.price).abs() > 0.0000001) {
+      if (last.timestamp != preview.timestamp ||
+          last.index != preview.index ||
+          (last.price - preview.price).abs() > 0.0000001) {
         previewPoints.add(preview);
       }
     }

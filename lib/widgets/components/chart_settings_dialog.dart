@@ -21,7 +21,7 @@ class _ChartSettingsDialogState extends State<ChartSettingsDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const SelectableText('チャート設定'),
+      title: const Text('チャート設定'),
       content: SizedBox(
         width: 300,
         height: 450,
@@ -41,14 +41,14 @@ class _ChartSettingsDialogState extends State<ChartSettingsDialog> {
           onPressed: () {
             Navigator.of(context).pop();
           },
-          child: const SelectableText('キャンセル'),
+          child: const Text('キャンセル'),
         ),
         ElevatedButton(
           onPressed: () {
             Navigator.of(context).pop();
             widget.onSettingsChanged();
           },
-          child: const SelectableText('確定'),
+          child: const Text('確定'),
         ),
       ],
     );
@@ -64,7 +64,7 @@ class _ChartSettingsDialogState extends State<ChartSettingsDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SelectableText(
+          const Text(
             'ウェーブポイント設定',
             style: TextStyle(
               fontWeight: FontWeight.bold,
@@ -73,8 +73,8 @@ class _ChartSettingsDialogState extends State<ChartSettingsDialog> {
           ),
           const SizedBox(height: 8),
           CheckboxListTile(
-            title: const SelectableText('ウェーブポイントを表示'),
-            subtitle: const SelectableText('高低点マーカーを表示'),
+            title: const Text('ウェーブポイントを表示'),
+            subtitle: const Text('高低点マーカーを表示'),
             value: widget.controller.isWavePointsVisible,
             onChanged: (bool? value) {
               if (value != null) {
@@ -85,8 +85,8 @@ class _ChartSettingsDialogState extends State<ChartSettingsDialog> {
             activeColor: Colors.blue,
           ),
           CheckboxListTile(
-            title: const SelectableText('ウェーブポイント接続線を表示'),
-            subtitle: const SelectableText('高低点を接続して折れ線を形成'),
+            title: const Text('ウェーブポイント接続線を表示'),
+            subtitle: const Text('高低点を接続して折れ線を形成'),
             value: widget.controller.isWavePointsLineVisible,
             onChanged: (bool? value) {
               if (value != null) {
@@ -111,7 +111,7 @@ class _ChartSettingsDialogState extends State<ChartSettingsDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SelectableText(
+          const Text(
             '移動平均線設定',
             style: TextStyle(
               fontWeight: FontWeight.bold,
@@ -121,8 +121,8 @@ class _ChartSettingsDialogState extends State<ChartSettingsDialog> {
           const SizedBox(height: 8),
           ...widget.controller.maPeriods.map((period) => 
             CheckboxListTile(
-              title: SelectableText('MA$period'),
-              subtitle: SelectableText(
+              title: Text('MA$period'),
+              subtitle: Text(
                 _getMaDescription(period),
                 style: TextStyle(
                   color: _getMaColor(period),

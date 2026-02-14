@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/chart_object.dart';
+import '../models/price_data.dart';
 
 enum ObjectDragTarget {
   start,
@@ -25,6 +26,7 @@ class ChartObjectInteractionService {
 
   static ObjectHitResult? hitTest({
     required List<ChartObject> objects,
+    required List<PriceData> data,
     required double x,
     required double y,
     required int endIndex,
@@ -39,6 +41,7 @@ class ChartObjectInteractionService {
   }) {
     final trendLineHit = _hitTestTrendLine(
       objects: objects,
+      data: data,
       x: x,
       y: y,
       endIndex: endIndex,
@@ -58,6 +61,7 @@ class ChartObjectInteractionService {
 
     final circleHit = _hitTestCircle(
       objects: objects,
+      data: data,
       x: x,
       y: y,
       endIndex: endIndex,
@@ -74,6 +78,7 @@ class ChartObjectInteractionService {
 
     final rectangleHit = _hitTestRectangle(
       objects: objects,
+      data: data,
       x: x,
       y: y,
       endIndex: endIndex,
@@ -90,6 +95,7 @@ class ChartObjectInteractionService {
 
     final fibHit = _hitTestFibonacci(
       objects: objects,
+      data: data,
       x: x,
       y: y,
       endIndex: endIndex,
@@ -106,6 +112,7 @@ class ChartObjectInteractionService {
 
     final polylineHit = _hitTestPolyline(
       objects: objects,
+      data: data,
       x: x,
       y: y,
       endIndex: endIndex,
@@ -123,8 +130,56 @@ class ChartObjectInteractionService {
     return null;
   }
 
+  static int? _findKlineIndexByTimestamp(List<PriceData> data, int timestamp) {
+    if (data.isEmpty) return null;
+
+    int low = 0;
+    int high = data.length - 1;
+    int? result;
+
+    while (low <= high) {
+      final mid = low + ((high - low) >> 1);
+      final midTimestamp = data[mid].timestamp;
+
+      if (midTimestamp == timestamp) {
+        return mid;
+      }
+      if (midTimestamp < timestamp) {
+        result = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    return result;
+  }
+
+  static int? _resolveAnchorIndex(List<PriceData> data, CandleAnchor anchor) {
+    if (anchor.timestamp != null) {
+      final resolved = _findKlineIndexByTimestamp(data, anchor.timestamp!);
+      if (resolved != null) return resolved;
+    }
+    if (anchor.index < 0 || anchor.index >= data.length) return null;
+    return anchor.index;
+  }
+
+  static int? _resolveIndexByTimestampOrFallback(
+    List<PriceData> data, {
+    required int? timestamp,
+    required int fallbackIndex,
+  }) {
+    if (timestamp != null) {
+      final resolved = _findKlineIndexByTimestamp(data, timestamp);
+      if (resolved != null) return resolved;
+    }
+    if (fallbackIndex < 0 || fallbackIndex >= data.length) return null;
+    return fallbackIndex;
+  }
+
   static Offset _anchorToOffset({
-    required int index,
+    required List<PriceData> data,
+    required CandleAnchor anchor,
     required double price,
     required int endIndex,
     required double candleWidth,
@@ -136,10 +191,13 @@ class ChartObjectInteractionService {
     required double minPrice,
     required double maxPrice,
   }) {
+    final int? resolvedIndex = _resolveAnchorIndex(data, anchor);
+    if (resolvedIndex == null) return const Offset(double.nan, double.nan);
+
     final unit = (candleWidth * scale) + spacing;
     final rightEdge = chartWidth - emptySpaceWidth;
     final priceRange = (maxPrice - minPrice).abs();
-    final x = rightEdge - (endIndex - index - 0.5) * unit;
+    final x = rightEdge - (endIndex - resolvedIndex - 0.5) * unit;
     final y = priceRange < 0.0000001
         ? chartHeight / 2
         : ((maxPrice - price) / priceRange) * chartHeight;
@@ -148,6 +206,7 @@ class ChartObjectInteractionService {
 
   static ObjectHitResult? _hitTestTrendLine({
     required List<ChartObject> objects,
+    required List<PriceData> data,
     required double x,
     required double y,
     required int endIndex,
@@ -176,12 +235,26 @@ class ChartObjectInteractionService {
     double nearestHandleDistance = double.infinity;
 
     for (final line in trendLines) {
+      final int? startIndex = _resolveIndexByTimestampOrFallback(
+        data,
+        timestamp: line.startTimestamp,
+        fallbackIndex: line.startIndex,
+      );
+      final int? endIndexResolved = _resolveIndexByTimestampOrFallback(
+        data,
+        timestamp: line.endTimestamp,
+        fallbackIndex: line.endIndex,
+      );
+      if (startIndex == null || endIndexResolved == null) {
+        continue;
+      }
+
       final start = Offset(
-        rightEdge - (endIndex - line.startIndex - 0.5) * unit,
+        rightEdge - (endIndex - startIndex - 0.5) * unit,
         ((maxPrice - line.startPrice) / priceRange) * chartHeight,
       );
       final end = Offset(
-        rightEdge - (endIndex - line.endIndex - 0.5) * unit,
+        rightEdge - (endIndex - endIndexResolved - 0.5) * unit,
         ((maxPrice - line.endPrice) / priceRange) * chartHeight,
       );
 
@@ -214,12 +287,26 @@ class ChartObjectInteractionService {
     double nearestBodyDistance = bodyThreshold;
 
     for (final line in trendLines) {
+      final int? startIndex = _resolveIndexByTimestampOrFallback(
+        data,
+        timestamp: line.startTimestamp,
+        fallbackIndex: line.startIndex,
+      );
+      final int? endIndexResolved = _resolveIndexByTimestampOrFallback(
+        data,
+        timestamp: line.endTimestamp,
+        fallbackIndex: line.endIndex,
+      );
+      if (startIndex == null || endIndexResolved == null) {
+        continue;
+      }
+
       final p1 = Offset(
-        rightEdge - (endIndex - line.startIndex - 0.5) * unit,
+        rightEdge - (endIndex - startIndex - 0.5) * unit,
         ((maxPrice - line.startPrice) / priceRange) * chartHeight,
       );
       final p2 = Offset(
-        rightEdge - (endIndex - line.endIndex - 0.5) * unit,
+        rightEdge - (endIndex - endIndexResolved - 0.5) * unit,
         ((maxPrice - line.endPrice) / priceRange) * chartHeight,
       );
 
@@ -250,6 +337,7 @@ class ChartObjectInteractionService {
 
   static ObjectHitResult? _hitTestCircle({
     required List<ChartObject> objects,
+    required List<PriceData> data,
     required double x,
     required double y,
     required int endIndex,
@@ -269,7 +357,8 @@ class ChartObjectInteractionService {
 
     for (final circle in circles) {
       final start = _anchorToOffset(
-        index: circle.start.index,
+        data: data,
+        anchor: circle.start,
         price: circle.start.price,
         endIndex: endIndex,
         candleWidth: candleWidth,
@@ -282,7 +371,8 @@ class ChartObjectInteractionService {
         maxPrice: maxPrice,
       );
       final end = _anchorToOffset(
-        index: circle.end.index,
+        data: data,
+        anchor: circle.end,
         price: circle.end.price,
         endIndex: endIndex,
         candleWidth: candleWidth,
@@ -314,6 +404,7 @@ class ChartObjectInteractionService {
 
   static ObjectHitResult? _hitTestRectangle({
     required List<ChartObject> objects,
+    required List<PriceData> data,
     required double x,
     required double y,
     required int endIndex,
@@ -332,7 +423,8 @@ class ChartObjectInteractionService {
 
     for (final rectObj in rectangles) {
       final start = _anchorToOffset(
-        index: rectObj.start.index,
+        data: data,
+        anchor: rectObj.start,
         price: rectObj.start.price,
         endIndex: endIndex,
         candleWidth: candleWidth,
@@ -345,7 +437,8 @@ class ChartObjectInteractionService {
         maxPrice: maxPrice,
       );
       final end = _anchorToOffset(
-        index: rectObj.end.index,
+        data: data,
+        anchor: rectObj.end,
         price: rectObj.end.price,
         endIndex: endIndex,
         candleWidth: candleWidth,
@@ -376,6 +469,7 @@ class ChartObjectInteractionService {
 
   static ObjectHitResult? _hitTestFibonacci({
     required List<ChartObject> objects,
+    required List<PriceData> data,
     required double x,
     required double y,
     required int endIndex,
@@ -395,7 +489,8 @@ class ChartObjectInteractionService {
 
     for (final fib in fibs) {
       final start = _anchorToOffset(
-        index: fib.start.index,
+        data: data,
+        anchor: fib.start,
         price: fib.start.price,
         endIndex: endIndex,
         candleWidth: candleWidth,
@@ -408,7 +503,8 @@ class ChartObjectInteractionService {
         maxPrice: maxPrice,
       );
       final end = _anchorToOffset(
-        index: fib.end.index,
+        data: data,
+        anchor: fib.end,
         price: fib.end.price,
         endIndex: endIndex,
         candleWidth: candleWidth,
@@ -434,7 +530,8 @@ class ChartObjectInteractionService {
       for (final level in fib.levels) {
         final levelPrice = fib.start.price + priceDelta * level;
         final levelPoint = _anchorToOffset(
-          index: fib.start.index,
+          data: data,
+          anchor: fib.start,
           price: levelPrice,
           endIndex: endIndex,
           candleWidth: candleWidth,
@@ -457,6 +554,7 @@ class ChartObjectInteractionService {
 
   static ObjectHitResult? _hitTestPolyline({
     required List<ChartObject> objects,
+    required List<PriceData> data,
     required double x,
     required double y,
     required int endIndex,
@@ -477,7 +575,8 @@ class ChartObjectInteractionService {
       if (polyline.points.length < 2) continue;
       for (int i = 0; i < polyline.points.length - 1; i++) {
         final p1 = _anchorToOffset(
-          index: polyline.points[i].index,
+          data: data,
+          anchor: polyline.points[i],
           price: polyline.points[i].price,
           endIndex: endIndex,
           candleWidth: candleWidth,
@@ -490,7 +589,8 @@ class ChartObjectInteractionService {
           maxPrice: maxPrice,
         );
         final p2 = _anchorToOffset(
-          index: polyline.points[i + 1].index,
+          data: data,
+          anchor: polyline.points[i + 1],
           price: polyline.points[i + 1].price,
           endIndex: endIndex,
           candleWidth: candleWidth,

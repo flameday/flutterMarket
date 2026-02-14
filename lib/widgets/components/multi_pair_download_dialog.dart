@@ -24,7 +24,7 @@ class _MultiPairDownloadDialogState extends State<MultiPairDownloadDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const SelectableText('複数取引ペアダウンロード'),
+      title: const Text('複数取引ペアダウンロード'),
       content: SizedBox(
         width: 500,
         height: 600,
@@ -33,11 +33,11 @@ class _MultiPairDownloadDialogState extends State<MultiPairDownloadDialog> {
       actions: _isDownloading ? [] : [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const SelectableText('キャンセル'),
+          child: const Text('キャンセル'),
         ),
         ElevatedButton(
           onPressed: _startDownload,
-          child: const SelectableText('ダウンロード開始'),
+          child: const Text('ダウンロード開始'),
         ),
       ],
     );
@@ -48,7 +48,7 @@ class _MultiPairDownloadDialogState extends State<MultiPairDownloadDialog> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 取引ペア選択
-        const SelectableText(
+        const Text(
           '取引ペア選択',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
@@ -64,8 +64,8 @@ class _MultiPairDownloadDialogState extends State<MultiPairDownloadDialog> {
             itemBuilder: (context, index) {
               final pair = TradingPair.values[index];
               return CheckboxListTile(
-                title: SelectableText(pair.displayName),
-                subtitle: SelectableText(pair.description),
+                title: Text(pair.displayName),
+                subtitle: Text(pair.description),
                 value: _selectedPairs.contains(pair),
                 onChanged: (bool? value) {
                   setState(() {
@@ -83,7 +83,7 @@ class _MultiPairDownloadDialogState extends State<MultiPairDownloadDialog> {
         const SizedBox(height: 16),
         
         // 時間周期選択
-        const SelectableText(
+        const Text(
           '時間周期選択',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
@@ -92,7 +92,7 @@ class _MultiPairDownloadDialogState extends State<MultiPairDownloadDialog> {
           children: Timeframe.values.map((timeframe) {
             return Expanded(
               child: CheckboxListTile(
-                title: SelectableText(timeframe.displayName),
+                title: Text(timeframe.displayName),
                 value: _selectedTimeframes.contains(timeframe),
                 onChanged: (bool? value) {
                   setState(() {
@@ -110,7 +110,7 @@ class _MultiPairDownloadDialogState extends State<MultiPairDownloadDialog> {
         const SizedBox(height: 16),
         
         // 日付範囲選択
-        const SelectableText(
+        const Text(
           '日付範囲',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
@@ -121,7 +121,7 @@ class _MultiPairDownloadDialogState extends State<MultiPairDownloadDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SelectableText('開始日'),
+                  const Text('開始日'),
                   const SizedBox(height: 4),
                   InkWell(
                     onTap: _selectStartDate,
@@ -131,7 +131,7 @@ class _MultiPairDownloadDialogState extends State<MultiPairDownloadDialog> {
                         border: Border.all(color: Colors.grey),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: SelectableText(
+                      child: Text(
                         '${_startDate.year}-${_startDate.month.toString().padLeft(2, '0')}-${_startDate.day.toString().padLeft(2, '0')}',
                       ),
                     ),
@@ -144,7 +144,7 @@ class _MultiPairDownloadDialogState extends State<MultiPairDownloadDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SelectableText('終了日'),
+                  const Text('終了日'),
                   const SizedBox(height: 4),
                   InkWell(
                     onTap: _selectEndDate,
@@ -154,7 +154,7 @@ class _MultiPairDownloadDialogState extends State<MultiPairDownloadDialog> {
                         border: Border.all(color: Colors.grey),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: SelectableText(
+                      child: Text(
                         '${_endDate.year}-${_endDate.month.toString().padLeft(2, '0')}-${_endDate.day.toString().padLeft(2, '0')}',
                       ),
                     ),
@@ -167,7 +167,7 @@ class _MultiPairDownloadDialogState extends State<MultiPairDownloadDialog> {
         const SizedBox(height: 16),
         
         // クイック選択ボタン
-        const SelectableText(
+        const Text(
           'クイック選択',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
@@ -176,17 +176,17 @@ class _MultiPairDownloadDialogState extends State<MultiPairDownloadDialog> {
           children: [
             ElevatedButton(
               onPressed: _selectMajorPairs,
-              child: const SelectableText('主要ペア'),
+              child: const Text('主要ペア'),
             ),
             const SizedBox(width: 8),
             ElevatedButton(
               onPressed: _selectAllPairs,
-              child: const SelectableText('全ペア'),
+              child: const Text('全ペア'),
             ),
             const SizedBox(width: 8),
             ElevatedButton(
               onPressed: _selectAllTimeframes,
-              child: const SelectableText('全時間周期'),
+              child: const Text('全時間周期'),
             ),
           ],
         ),
@@ -197,7 +197,7 @@ class _MultiPairDownloadDialogState extends State<MultiPairDownloadDialog> {
   Widget _buildDownloadProgress() {
     return Column(
       children: [
-        const SelectableText(
+        const Text(
           'ダウンロード中...',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
@@ -208,19 +208,19 @@ class _MultiPairDownloadDialogState extends State<MultiPairDownloadDialog> {
           valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
         ),
         const SizedBox(height: 8),
-        SelectableText(
+        Text(
           '${(_downloadProgress * 100).toStringAsFixed(1)}%',
           style: const TextStyle(fontSize: 16),
         ),
         const SizedBox(height: 16),
-        SelectableText(
+        Text(
           _statusMessage,
           style: const TextStyle(fontSize: 14),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 16),
         if (_results.isNotEmpty) ...[
-          const SelectableText(
+          const Text(
             'ダウンロード結果',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
@@ -240,8 +240,8 @@ class _MultiPairDownloadDialogState extends State<MultiPairDownloadDialog> {
                     status == 'success' ? Icons.check_circle : Icons.error,
                     color: status == 'success' ? Colors.green : Colors.red,
                   ),
-                  title: SelectableText('${pair.displayName} ${timeframe.displayName}'),
-                  subtitle: SelectableText(message),
+                  title: Text('${pair.displayName} ${timeframe.displayName}'),
+                  subtitle: Text(message),
                 );
               },
             ),
@@ -250,7 +250,7 @@ class _MultiPairDownloadDialogState extends State<MultiPairDownloadDialog> {
         const SizedBox(height: 16),
         ElevatedButton(
           onPressed: _isDownloading ? _cancelDownload : _closeDialog,
-          child: SelectableText(_isDownloading ? 'キャンセル' : '閉じる'),
+          child: Text(_isDownloading ? 'キャンセル' : '閉じる'),
         ),
       ],
     );

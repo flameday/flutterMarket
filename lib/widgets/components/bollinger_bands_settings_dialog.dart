@@ -40,7 +40,7 @@ class _BollingerBandsSettingsDialogState extends State<BollingerBandsSettingsDia
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const SelectableText('布林通道设置'),
+      title: const Text('布林通道设置'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -66,15 +66,15 @@ class _BollingerBandsSettingsDialogState extends State<BollingerBandsSettingsDia
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const SelectableText('取消'),
+          child: const Text('取消'),
         ),
         TextButton(
           onPressed: _resetToDefaults,
-          child: const SelectableText('重置'),
+          child: const Text('重置'),
         ),
         ElevatedButton(
           onPressed: _applySettings,
-          child: const SelectableText('应用'),
+          child: const Text('应用'),
         ),
       ],
     );
@@ -84,14 +84,14 @@ class _BollingerBandsSettingsDialogState extends State<BollingerBandsSettingsDia
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SelectableText(
+        const Text(
           '期间设置',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         const SizedBox(height: 8),
         Row(
           children: [
-            const SelectableText('期间: '),
+            const Text('期间: '),
             Expanded(
               child: TextField(
                 controller: TextEditingController(text: _period.toString()),
@@ -110,7 +110,7 @@ class _BollingerBandsSettingsDialogState extends State<BollingerBandsSettingsDia
               ),
             ),
             const SizedBox(width: 8),
-            const SelectableText('(推荐: 20)'),
+            const Text('(推荐: 20)'),
           ],
         ),
       ],
@@ -121,14 +121,14 @@ class _BollingerBandsSettingsDialogState extends State<BollingerBandsSettingsDia
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SelectableText(
+        const Text(
           '标准偏差倍率设置',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
         const SizedBox(height: 8),
         Row(
           children: [
-            const SelectableText('倍率: '),
+            const Text('倍率: '),
             Expanded(
               child: TextField(
                 controller: TextEditingController(text: _stdDev.toString()),
@@ -149,7 +149,7 @@ class _BollingerBandsSettingsDialogState extends State<BollingerBandsSettingsDia
               ),
             ),
             const SizedBox(width: 8),
-            const SelectableText('(推荐: 2.0)'),
+            const Text('(推荐: 2.0)'),
           ],
         ),
       ],
@@ -160,7 +160,7 @@ class _BollingerBandsSettingsDialogState extends State<BollingerBandsSettingsDia
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SelectableText(
+        const Text(
           '颜色设置',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
@@ -179,7 +179,7 @@ class _BollingerBandsSettingsDialogState extends State<BollingerBandsSettingsDia
         children: [
           SizedBox(
             width: 60,
-            child: SelectableText('$label:'),
+            child: Text('$label:'),
           ),
           Container(
             width: 30,
@@ -215,7 +215,7 @@ class _BollingerBandsSettingsDialogState extends State<BollingerBandsSettingsDia
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SelectableText(
+        const Text(
           '透明度设置',
           style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
         ),
@@ -234,7 +234,7 @@ class _BollingerBandsSettingsDialogState extends State<BollingerBandsSettingsDia
         children: [
           SizedBox(
             width: 60,
-            child: SelectableText('$label:'),
+            child: Text('$label:'),
           ),
           Expanded(
             child: Slider(
@@ -252,7 +252,7 @@ class _BollingerBandsSettingsDialogState extends State<BollingerBandsSettingsDia
           ),
           SizedBox(
             width: 40,
-            child: SelectableText('${(currentAlpha * 100).round()}%'),
+            child: Text('${(currentAlpha * 100).round()}%'),
           ),
         ],
       ),

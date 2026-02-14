@@ -74,7 +74,7 @@ class _BackgroundColorPickerDialogState extends State<BackgroundColorPickerDialo
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const SelectableText('背景色を選択'),
+      title: const Text('背景色を選択'),
       content: SizedBox(
         width: 400,
         height: 600, // 高さを増やして透明度スライダーのスペースを確保
@@ -119,7 +119,7 @@ class _BackgroundColorPickerDialogState extends State<BackgroundColorPickerDialo
                               size: 20,
                             ),
                           const SizedBox(height: 4),
-                          SelectableText(
+                          Text(
                             preset.name,
                             style: TextStyle(
                               color: _isLightColor(Color(int.parse(preset.color))) 
@@ -151,14 +151,14 @@ class _BackgroundColorPickerDialogState extends State<BackgroundColorPickerDialo
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const SelectableText(
+                      const Text(
                         '透明度',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      SelectableText(
+                      Text(
                         '${(_alpha * 100).round()}%',
                         style: const TextStyle(
                           fontSize: 14,
@@ -189,7 +189,7 @@ class _BackgroundColorPickerDialogState extends State<BackgroundColorPickerDialo
                       border: Border.all(color: Colors.grey.shade300),
                     ),
                     child: const Center(
-                      child: SelectableText(
+                      child: Text(
                         'プレビュー',
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
@@ -207,7 +207,7 @@ class _BackgroundColorPickerDialogState extends State<BackgroundColorPickerDialo
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const SelectableText('キャンセル'),
+          child: const Text('キャンセル'),
         ),
         ElevatedButton(
           onPressed: () {
@@ -216,7 +216,7 @@ class _BackgroundColorPickerDialogState extends State<BackgroundColorPickerDialo
             widget.onColorSelected(finalColor);
             Navigator.of(context).pop();
           },
-          child: const SelectableText('適用'),
+          child: const Text('適用'),
         ),
       ],
     );

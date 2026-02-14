@@ -63,7 +63,7 @@ class _RealMultiWindowLauncherState extends State<RealMultiWindowLauncher> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const SelectableText('真のマルチウィンドウ管理'),
+        title: const Text('真のマルチウィンドウ管理'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: _isLoading ? const Center(child: CircularProgressIndicator()) : _buildContent(),
@@ -134,7 +134,7 @@ class _RealMultiWindowLauncherState extends State<RealMultiWindowLauncher> {
             ElevatedButton.icon(
               onPressed: _initializeMultiWindow,
               icon: const Icon(Icons.refresh),
-              label: const SelectableText('再チェック'),
+              label: const Text('再チェック'),
             ),
           ],
         ),
@@ -299,7 +299,7 @@ class _RealMultiWindowLauncherState extends State<RealMultiWindowLauncher> {
         ),
         title: Row(
           children: [
-            SelectableText(title, style: const TextStyle(fontSize: 14)),
+            Text(title, style: const TextStyle(fontSize: 14)),
             if (supportsTimeframeSelection) ...[
               const SizedBox(width: 8),
               Container(
@@ -309,7 +309,7 @@ class _RealMultiWindowLauncherState extends State<RealMultiWindowLauncher> {
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
                 ),
-                child: const SelectableText(
+                child: const Text(
                   '周期選択サポート',
                   style: TextStyle(
                     fontSize: 8,
@@ -321,7 +321,7 @@ class _RealMultiWindowLauncherState extends State<RealMultiWindowLauncher> {
             ],
           ],
         ),
-        subtitle: SelectableText(description, style: const TextStyle(fontSize: 12)),
+        subtitle: Text(description, style: const TextStyle(fontSize: 12)),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -331,7 +331,7 @@ class _RealMultiWindowLauncherState extends State<RealMultiWindowLauncher> {
                 color: isOpen ? Colors.green.withValues(alpha: 0.2) : Colors.grey.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: SelectableText(
+              child: Text(
                 isOpen ? '開いている' : '閉じている',
                 style: TextStyle(
                   color: isOpen ? Colors.green : Colors.grey,
@@ -372,7 +372,7 @@ class _RealMultiWindowLauncherState extends State<RealMultiWindowLauncher> {
             children: [
               const Icon(Icons.info_outline, color: Colors.blue, size: 16),
               const SizedBox(width: 6),
-              SelectableText(
+              Text(
                 '已打开: $openCount / $totalCount 个窗口',
                 style: const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 12),
               ),
@@ -389,7 +389,7 @@ class _RealMultiWindowLauncherState extends State<RealMultiWindowLauncher> {
               child: ElevatedButton.icon(
                 onPressed: _openAllWindows,
                 icon: const Icon(Icons.open_in_new, size: 16),
-                label: const SelectableText('打开所有窗口', style: TextStyle(fontSize: 12)),
+                label: const Text('打开所有窗口', style: TextStyle(fontSize: 12)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.blue,
                   foregroundColor: Colors.white,
@@ -402,7 +402,7 @@ class _RealMultiWindowLauncherState extends State<RealMultiWindowLauncher> {
               child: ElevatedButton.icon(
                 onPressed: _closeAllWindows,
                 icon: const Icon(Icons.close, size: 16),
-                label: const SelectableText('すべてのウィンドウを閉じる', style: TextStyle(fontSize: 12)),
+                label: const Text('すべてのウィンドウを閉じる', style: TextStyle(fontSize: 12)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.red,
                   foregroundColor: Colors.white,
@@ -471,7 +471,7 @@ class _RealMultiWindowLauncherState extends State<RealMultiWindowLauncher> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: SelectableText('$successCount / ${results.length} 個のウィンドウを開くことに成功'),
+            content: Text('$successCount / ${results.length} 個のウィンドウを開くことに成功'),
             backgroundColor: successCount == results.length ? Colors.green : Colors.orange,
             duration: const Duration(seconds: 3),
           ),
@@ -482,7 +482,7 @@ class _RealMultiWindowLauncherState extends State<RealMultiWindowLauncher> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: SelectableText('ウィンドウを開くのに失敗: $e'),
+            content: Text('ウィンドウを開くのに失敗: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -511,7 +511,7 @@ class _RealMultiWindowLauncherState extends State<RealMultiWindowLauncher> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: SelectableText('$successCount / ${results.length} 個のウィンドウを閉じることに成功'),
+            content: Text('$successCount / ${results.length} 個のウィンドウを閉じることに成功'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 2),
           ),
@@ -522,7 +522,7 @@ class _RealMultiWindowLauncherState extends State<RealMultiWindowLauncher> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: SelectableText('ウィンドウを閉じるのに失敗: $e'),
+            content: Text('ウィンドウを閉じるのに失敗: $e'),
             backgroundColor: Colors.red,
           ),
         );

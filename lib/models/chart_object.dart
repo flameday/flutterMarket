@@ -36,8 +36,10 @@ class TrendLineObject extends ChartObject {
     required super.id,
     required this.startIndex,
     required this.startPrice,
+    this.startTimestamp,
     required this.endIndex,
     required this.endPrice,
+    this.endTimestamp,
     this.color = '#FFD700',
     this.width = 2.0,
     this.selected = false,
@@ -47,8 +49,10 @@ class TrendLineObject extends ChartObject {
 
   final int startIndex;
   final double startPrice;
+  final int? startTimestamp;
   final int endIndex;
   final double endPrice;
+  final int? endTimestamp;
   final String color;
   final double width;
   final bool selected;
@@ -92,10 +96,12 @@ class CandleAnchor {
   const CandleAnchor({
     required this.index,
     required this.price,
+    this.timestamp,
   });
 
   final int index;
   final double price;
+  final int? timestamp;
 }
 
 class WavePointObject extends ChartObject {

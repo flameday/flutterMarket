@@ -29,8 +29,10 @@ class ChartObjectLayer3InteractionBuilder {
           id: line.id,
           startIndex: line.startIndex,
           startPrice: line.startPrice,
+          startTimestamp: line.startTimestamp,
           endIndex: line.endIndex,
           endPrice: line.endPrice,
+          endTimestamp: line.endTimestamp,
           color: line.color,
           width: line.width,
           selected: selectedTrendLineId == line.id,
@@ -51,8 +53,16 @@ class ChartObjectLayer3InteractionBuilder {
         objects.add(
           FibonacciRetracementObject(
             id: 'fib-${selected.id}',
-            start: CandleAnchor(index: selected.startIndex, price: selected.startPrice),
-            end: CandleAnchor(index: selected.endIndex, price: selected.endPrice),
+            start: CandleAnchor(
+              index: selected.startIndex,
+              price: selected.startPrice,
+              timestamp: selected.startTimestamp,
+            ),
+            end: CandleAnchor(
+              index: selected.endIndex,
+              price: selected.endPrice,
+              timestamp: selected.endTimestamp,
+            ),
             layer: ChartObjectLayer.interaction,
           ),
         );
