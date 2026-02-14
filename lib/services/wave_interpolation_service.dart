@@ -2,7 +2,6 @@ import 'dart:math' as math;
 import '../models/wave_point.dart';
 import '../models/wave_points.dart';
 import '../models/price_data.dart';
-import 'wave_denoising_service.dart';
 import 'log_service.dart';
 
 /// フラクタル構造データクラス
@@ -2344,12 +2343,6 @@ class WaveInterpolationService {
     List<WavePoint> basePoints = filterSmallWaves(originalPoints, minPriceChange: 0.0001);
     Log.info('WaveInterpolationService', '基礎点集処理完了: ${basePoints.length}個の点');
     
-    // 检查是否需要去噪
-    if (methodName.contains('denoised')) {
-      Log.info('WaveInterpolationService', 'ノイズ除去処理開始');
-      basePoints = WaveDenoisingService.denoiseWavePoints(basePoints);
-      Log.info('WaveInterpolationService', 'ノイズ除去処理完了: ${basePoints.length}個の点');
-    }
     // 检查是否需要分形过滤
     if (methodName.contains('fractal')) {
       Log.info('WaveInterpolationService', 'フラクタルフィルタリング開始');
@@ -2406,7 +2399,7 @@ class WaveInterpolationService {
       result[methodName] = hybridSmoothing(processedPoints, geometricWeight: 0.6, statisticalWeight: 0.4);
     } else {
       Log.info('WaveInterpolationService', 'デフォルト処理実行');
-      // 如果没有插值/平滑后缀 (例如 'filtered', 'denoised', 'maTrend')
+      // 如果没有插值/平滑后缀 (例如 'filtered', 'maTrend')
       // 则直接返回处理后的点集
       // Also handle base methods like 'original', 'chaikin', 'catmullRom', 'linear'
       switch (methodName) {
@@ -2504,32 +2497,22 @@ class WaveInterpolationService {
     // --- Fallback: Generate all methods if no specific one is selected ---
     // まず小さな波をフィルタリング
     final filteredPoints = filterSmallWaves(originalPoints, minPriceChange: 0.0001);
-    
-    // ノイズ除去アルゴリズムを適用
-    final denoisedPoints = WaveDenoisingService.denoiseWavePoints(filteredPoints);
-    
+
     // フラクタルフィルタリングを適用
     final fractalFiltered = fractalFiltering(filteredPoints, fractalThreshold: 0.618);
-    final denoisedFractal = fractalFiltering(denoisedPoints, fractalThreshold: 0.618);
-    
+
     // MAトレンドフィルタリングを適用（MAデータがある場合）
     List<WavePoint> maTrendFiltered = filteredPoints;
-    List<WavePoint> denoisedMaTrend = denoisedPoints;
     List<WavePoint> continuousWeightFiltered = filteredPoints;
-    List<WavePoint> denoisedContinuousWeight = denoisedPoints;
     List<WavePoint> nStructureFiltered = filteredPoints;
-    List<WavePoint> denoisedNStructure = denoisedPoints;
     if (maValues != null) {
       maTrendFiltered = maTrendFiltering(filteredPoints, maValues, maPeriod: maPeriod);
-      denoisedMaTrend = maTrendFiltering(denoisedPoints, maValues, maPeriod: maPeriod);
-      
+
       // 連続重みフィルタリングを適用
       continuousWeightFiltered = continuousWeightFiltering(filteredPoints, maValues, maPeriod: maPeriod);
-      denoisedContinuousWeight = continuousWeightFiltering(denoisedPoints, maValues, maPeriod: maPeriod);
-      
+
       // N字構造分析を適用
       nStructureFiltered = nStructureAnalysis(filteredPoints, maValues, maPeriod: maPeriod);
-      denoisedNStructure = nStructureAnalysis(denoisedPoints, maValues, maPeriod: maPeriod);
     }
 
     // 異なる補間方法の波線を生成
@@ -2537,178 +2520,93 @@ class WaveInterpolationService {
     final catmullRomWaves = catmullRomInterpolation(filteredPoints, segmentsPerInterval: 8);
     final linearWaves = linearInterpolation(filteredPoints, segmentsPerInterval: 5);
     
-    // ノイズ除去後のポイントも補間
-    final denoisedChaikin = chaikinInterpolation(denoisedPoints, iterations: 2);
-    final denoisedCatmullRom = catmullRomInterpolation(denoisedPoints, segmentsPerInterval: 8);
-    final denoisedLinear = linearInterpolation(denoisedPoints, segmentsPerInterval: 5);
-    
     // フラクタルフィルタリング後のポイントを補間
     final fractalChaikin = chaikinInterpolation(fractalFiltered, iterations: 2);
     final fractalCatmullRom = catmullRomInterpolation(fractalFiltered, segmentsPerInterval: 8);
     final fractalLinear = linearInterpolation(fractalFiltered, segmentsPerInterval: 5);
-    
-    // ノイズ除去+フラクタルフィルタリング後のポイントを補間
-    final denoisedFractalChaikin = chaikinInterpolation(denoisedFractal, iterations: 2);
-    final denoisedFractalCatmullRom = catmullRomInterpolation(denoisedFractal, segmentsPerInterval: 8);
-    final denoisedFractalLinear = linearInterpolation(denoisedFractal, segmentsPerInterval: 5);
-    
+
     // 新規幾何/統計平滑化方法
     final geometricSmoothed = geometricSmoothing(filteredPoints, smoothingFactor: 0.3);
     final statisticalSmoothed = statisticalSmoothing(filteredPoints, windowSize: 5);
     final hybridSmoothed = hybridSmoothing(filteredPoints, geometricWeight: 0.6, statisticalWeight: 0.4);
-    
-    // ノイズ除去後のポイントも幾何/統計平滑化
-    final denoisedGeometric = geometricSmoothing(denoisedPoints, smoothingFactor: 0.3);
-    final denoisedStatistical = statisticalSmoothing(denoisedPoints, windowSize: 5);
-    final denoisedHybrid = hybridSmoothing(denoisedPoints, geometricWeight: 0.6, statisticalWeight: 0.4);
-    
+
     // フラクタルフィルタリング後のポイントを幾何/統計平滑化
     final fractalGeometric = geometricSmoothing(fractalFiltered, smoothingFactor: 0.3);
     final fractalStatistical = statisticalSmoothing(fractalFiltered, windowSize: 5);
     final fractalHybrid = hybridSmoothing(fractalFiltered, geometricWeight: 0.6, statisticalWeight: 0.4);
-    
-    // ノイズ除去+フラクタルフィルタリング後のポイントを幾何/統計平滑化
-    final denoisedFractalGeometric = geometricSmoothing(denoisedFractal, smoothingFactor: 0.3);
-    final denoisedFractalStatistical = statisticalSmoothing(denoisedFractal, windowSize: 5);
-    final denoisedFractalHybrid = hybridSmoothing(denoisedFractal, geometricWeight: 0.6, statisticalWeight: 0.4);
-    
+
     // MAトレンドフィルタリング後のポイントを補間
     final maTrendChaikin = chaikinInterpolation(maTrendFiltered, iterations: 2);
     final maTrendCatmullRom = catmullRomInterpolation(maTrendFiltered, segmentsPerInterval: 8);
     final maTrendLinear = linearInterpolation(maTrendFiltered, segmentsPerInterval: 5);
-    
-    // ノイズ除去+MAトレンドフィルタリング後のポイントを補間
-    final denoisedMaTrendChaikin = chaikinInterpolation(denoisedMaTrend, iterations: 2);
-    final denoisedMaTrendCatmullRom = catmullRomInterpolation(denoisedMaTrend, segmentsPerInterval: 8);
-    final denoisedMaTrendLinear = linearInterpolation(denoisedMaTrend, segmentsPerInterval: 5);
-    
+
     // MAトレンドフィルタリング後のポイントを幾何/統計平滑化
     final maTrendGeometric = geometricSmoothing(maTrendFiltered, smoothingFactor: 0.3);
     final maTrendStatistical = statisticalSmoothing(maTrendFiltered, windowSize: 5);
     final maTrendHybrid = hybridSmoothing(maTrendFiltered, geometricWeight: 0.6, statisticalWeight: 0.4);
-    
-    // ノイズ除去+MAトレンドフィルタリング後のポイントを幾何/統計平滑化
-    final denoisedMaTrendGeometric = geometricSmoothing(denoisedMaTrend, smoothingFactor: 0.3);
-    final denoisedMaTrendStatistical = statisticalSmoothing(denoisedMaTrend, windowSize: 5);
-    final denoisedMaTrendHybrid = hybridSmoothing(denoisedMaTrend, geometricWeight: 0.6, statisticalWeight: 0.4);
-    
+
     // 連続重みフィルタリング後のポイントを補間
     final continuousWeightChaikin = chaikinInterpolation(continuousWeightFiltered, iterations: 2);
     final continuousWeightCatmullRom = catmullRomInterpolation(continuousWeightFiltered, segmentsPerInterval: 8);
     final continuousWeightLinear = linearInterpolation(continuousWeightFiltered, segmentsPerInterval: 5);
-    
-    // ノイズ除去+連続重みフィルタリング後のポイントを補間
-    final denoisedContinuousWeightChaikin = chaikinInterpolation(denoisedContinuousWeight, iterations: 2);
-    final denoisedContinuousWeightCatmullRom = catmullRomInterpolation(denoisedContinuousWeight, segmentsPerInterval: 8);
-    final denoisedContinuousWeightLinear = linearInterpolation(denoisedContinuousWeight, segmentsPerInterval: 5);
-    
+
     // 連続重みフィルタリング後のポイントを幾何/統計平滑化
     final continuousWeightGeometric = geometricSmoothing(continuousWeightFiltered, smoothingFactor: 0.3);
     final continuousWeightStatistical = statisticalSmoothing(continuousWeightFiltered, windowSize: 5);
     final continuousWeightHybrid = hybridSmoothing(continuousWeightFiltered, geometricWeight: 0.6, statisticalWeight: 0.4);
-    
-    // ノイズ除去+連続重みフィルタリング後のポイントを幾何/統計平滑化
-    final denoisedContinuousWeightGeometric = geometricSmoothing(denoisedContinuousWeight, smoothingFactor: 0.3);
-    final denoisedContinuousWeightStatistical = statisticalSmoothing(denoisedContinuousWeight, windowSize: 5);
-    final denoisedContinuousWeightHybrid = hybridSmoothing(denoisedContinuousWeight, geometricWeight: 0.6, statisticalWeight: 0.4);
-    
+
     // N字構造分析後のポイントを補間
     final nStructureChaikin = chaikinInterpolation(nStructureFiltered, iterations: 2);
     final nStructureCatmullRom = catmullRomInterpolation(nStructureFiltered, segmentsPerInterval: 8);
     final nStructureLinear = linearInterpolation(nStructureFiltered, segmentsPerInterval: 5);
-    
-    // ノイズ除去+N字構造分析後のポイントを補間
-    final denoisedNStructureChaikin = chaikinInterpolation(denoisedNStructure, iterations: 2);
-    final denoisedNStructureCatmullRom = catmullRomInterpolation(denoisedNStructure, segmentsPerInterval: 8);
-    final denoisedNStructureLinear = linearInterpolation(denoisedNStructure, segmentsPerInterval: 5);
-    
+
     // N字構造分析後のポイントを幾何/統計平滑化
     final nStructureGeometric = geometricSmoothing(nStructureFiltered, smoothingFactor: 0.3);
     final nStructureStatistical = statisticalSmoothing(nStructureFiltered, windowSize: 5);
     final nStructureHybrid = hybridSmoothing(nStructureFiltered, geometricWeight: 0.6, statisticalWeight: 0.4);
-    
-    // ノイズ除去+N字構造分析後のポイントを幾何/統計平滑化
-    final denoisedNStructureGeometric = geometricSmoothing(denoisedNStructure, smoothingFactor: 0.3);
-    final denoisedNStructureStatistical = statisticalSmoothing(denoisedNStructure, windowSize: 5);
-    final denoisedNStructureHybrid = hybridSmoothing(denoisedNStructure, geometricWeight: 0.6, statisticalWeight: 0.4);
-    
+
     final result = {
       'original': originalPoints,
       'filtered': filteredPoints,
-      'denoised': denoisedPoints,
       'fractal': fractalFiltered,
-      'denoisedFractal': denoisedFractal,
       'chaikin': chaikinWaves,
       'catmullRom': catmullRomWaves,
       'linear': linearWaves,
-      'denoisedChaikin': denoisedChaikin,
-      'denoisedCatmullRom': denoisedCatmullRom,
-      'denoisedLinear': denoisedLinear,
       'fractalChaikin': fractalChaikin,
       'fractalCatmullRom': fractalCatmullRom,
       'fractalLinear': fractalLinear,
-      'denoisedFractalChaikin': denoisedFractalChaikin,
-      'denoisedFractalCatmullRom': denoisedFractalCatmullRom,
-      'denoisedFractalLinear': denoisedFractalLinear,
       'geometric': geometricSmoothed,
       'statistical': statisticalSmoothed,
       'hybrid': hybridSmoothed,
-      'denoisedGeometric': denoisedGeometric,
-      'denoisedStatistical': denoisedStatistical,
-      'denoisedHybrid': denoisedHybrid,
       'fractalGeometric': fractalGeometric,
       'fractalStatistical': fractalStatistical,
       'fractalHybrid': fractalHybrid,
-      'denoisedFractalGeometric': denoisedFractalGeometric,
-      'denoisedFractalStatistical': denoisedFractalStatistical,
-      'denoisedFractalHybrid': denoisedFractalHybrid,
     };
     
     // MAデータがある場合、MAトレンドフィルタリングと連続重みフィルタリングの結果を追加
     if (maValues != null) {
       result.addAll({
         'maTrend': maTrendFiltered,
-        'denoisedMaTrend': denoisedMaTrend,
         'maTrendChaikin': maTrendChaikin,
         'maTrendCatmullRom': maTrendCatmullRom,
         'maTrendLinear': maTrendLinear,
-        'denoisedMaTrendChaikin': denoisedMaTrendChaikin,
-        'denoisedMaTrendCatmullRom': denoisedMaTrendCatmullRom,
-        'denoisedMaTrendLinear': denoisedMaTrendLinear,
         'maTrendGeometric': maTrendGeometric,
         'maTrendStatistical': maTrendStatistical,
         'maTrendHybrid': maTrendHybrid,
-        'denoisedMaTrendGeometric': denoisedMaTrendGeometric,
-        'denoisedMaTrendStatistical': denoisedMaTrendStatistical,
-        'denoisedMaTrendHybrid': denoisedMaTrendHybrid,
         'continuousWeight': continuousWeightFiltered,
-        'denoisedContinuousWeight': denoisedContinuousWeight,
         'continuousWeightChaikin': continuousWeightChaikin,
         'continuousWeightCatmullRom': continuousWeightCatmullRom,
         'continuousWeightLinear': continuousWeightLinear,
-        'denoisedContinuousWeightChaikin': denoisedContinuousWeightChaikin,
-        'denoisedContinuousWeightCatmullRom': denoisedContinuousWeightCatmullRom,
-        'denoisedContinuousWeightLinear': denoisedContinuousWeightLinear,
         'continuousWeightGeometric': continuousWeightGeometric,
         'continuousWeightStatistical': continuousWeightStatistical,
         'continuousWeightHybrid': continuousWeightHybrid,
-        'denoisedContinuousWeightGeometric': denoisedContinuousWeightGeometric,
-        'denoisedContinuousWeightStatistical': denoisedContinuousWeightStatistical,
-        'denoisedContinuousWeightHybrid': denoisedContinuousWeightHybrid,
         'nStructure': nStructureFiltered,
-        'denoisedNStructure': denoisedNStructure,
         'nStructureChaikin': nStructureChaikin,
         'nStructureCatmullRom': nStructureCatmullRom,
         'nStructureLinear': nStructureLinear,
-        'denoisedNStructureChaikin': denoisedNStructureChaikin,
-        'denoisedNStructureCatmullRom': denoisedNStructureCatmullRom,
-        'denoisedNStructureLinear': denoisedNStructureLinear,
         'nStructureGeometric': nStructureGeometric,
         'nStructureStatistical': nStructureStatistical,
         'nStructureHybrid': nStructureHybrid,
-        'denoisedNStructureGeometric': denoisedNStructureGeometric,
-        'denoisedNStructureStatistical': denoisedNStructureStatistical,
-        'denoisedNStructureHybrid': denoisedNStructureHybrid,
       });
     }
     

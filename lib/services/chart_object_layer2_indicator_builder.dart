@@ -169,29 +169,6 @@ class ChartObjectLayer2IndicatorBuilder {
         ),
       );
     }
-
-    if (filtered.fittedCurve.length > 1) {
-      objects.add(
-        FittedCurveObject(
-          id: 'analysis-fitted-curve',
-          points: filtered.fittedCurve
-              .map(
-                (point) {
-                  final int pointIndex = point['index'] as int;
-                  return CandleAnchor(
-                    index: pointIndex,
-                    price: (point['value'] as num).toDouble(),
-                    timestamp: timestampFromIndex(pointIndex),
-                  );
-                },
-              )
-              .toList(),
-          color: '#2196F3',
-          width: 2.0,
-          layer: ChartObjectLayer.aboveIndicators,
-        ),
-      );
-    }
   }
 
   static (String, double) _trendLineStyle(String strengthLevel, String type) {

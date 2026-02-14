@@ -221,21 +221,6 @@ class SmoothTrendPolylineObject extends ChartObject {
   final double width;
 }
 
-class FittedCurveObject extends ChartObject {
-  const FittedCurveObject({
-    required super.id,
-    required this.points,
-    this.color = '#2196F3',
-    this.width = 2.0,
-    super.layer = ChartObjectLayer.aboveIndicators,
-    super.visible = true,
-  });
-
-  final List<CandleAnchor> points;
-  final String color;
-  final double width;
-}
-
 class CircleObject extends ChartObject {
   const CircleObject({
     required super.id,

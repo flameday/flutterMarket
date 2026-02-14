@@ -15,7 +15,6 @@ import '../services/user_drawing_layer3_manager.dart';
 import '../services/layer3_drawing_object_builder.dart';
 import 'candlestick_painter.dart';
 import 'chart_view_controller.dart';
-import 'components/bollinger_bands_settings_dialog.dart';
 
 part 'candlestick_chart_interaction_coordinator.dart';
 
@@ -46,14 +45,6 @@ class CandlestickChart extends StatefulWidget {
   final double? trendFilteringNearThreshold; // トレンドフィルタリング近い距離閾値
   final double? trendFilteringFarThreshold; // トレンドフィルタリング遠い距離閾値
   final int? trendFilteringMinGapBars; // トレンドフィルタリング最低バー間隔
-  final bool? isCubicCurveVisible; // 3次曲线显示/隐藏
-  final bool? isMA60FilteredCurveVisible; // 60均线过滤曲线显示/隐藏
-  final bool? isBollingerBandsFilteredCurveVisible; // 布林线过滤曲线显示/隐藏
-  final bool? isBollingerBandsVisible; // 布林通道显示/隐藏
-  final int? bbPeriod; // 布林通道期间
-  final double? bbStdDev; // 布林通道标准偏差倍率
-  final Map<String, String>? bbColors; // 布林通道色设定
-  final Map<String, double>? bbAlphas; // 布林通道透明度设定
   final bool? isMaTrendBackgroundEnabled; // 移动平均线趋势背景是否启用
   final bool? isMousePositionZoomEnabled; // 鼠标位置缩放是否启用
   final bool? isAutoUpdateEnabled; // 自动更新是否启用
@@ -81,14 +72,6 @@ class CandlestickChart extends StatefulWidget {
     this.trendFilteringNearThreshold,
     this.trendFilteringFarThreshold,
     this.trendFilteringMinGapBars,
-    this.isCubicCurveVisible,
-    this.isMA60FilteredCurveVisible,
-    this.isBollingerBandsFilteredCurveVisible,
-    this.isBollingerBandsVisible,
-    this.bbPeriod,
-    this.bbStdDev,
-    this.bbColors,
-    this.bbAlphas,
     this.isMaTrendBackgroundEnabled,
     this.isMousePositionZoomEnabled,
     this.isAutoUpdateEnabled,
@@ -102,7 +85,7 @@ class CandlestickChart extends StatefulWidget {
 
   @override
   State<CandlestickChart> createState() => _CandlestickChartState();
-  
+
   /// 静态导航方法
   static void navigateToIndex(int index) {
     if (_currentInstance != null) {
@@ -111,7 +94,7 @@ class CandlestickChart extends StatefulWidget {
       // LogService.instance.warning('CandlestickChart', '图表实例未初始化，无法导航');
     }
   }
-  
+
   static void navigateToTimestamp(int timestamp) {
     if (_currentInstance != null) {
       _currentInstance!.navigateToTimestamp(timestamp);
@@ -119,7 +102,7 @@ class CandlestickChart extends StatefulWidget {
       // LogService.instance.warning('CandlestickChart', '图表实例未初始化，无法导航');
     }
   }
-  
+
   static void navigateToStart() {
     if (_currentInstance != null) {
       _currentInstance!.navigateToStart();
@@ -127,7 +110,7 @@ class CandlestickChart extends StatefulWidget {
       // LogService.instance.warning('CandlestickChart', '图表实例未初始化，无法导航');
     }
   }
-  
+
   static void navigateToEnd() {
     if (_currentInstance != null) {
       _currentInstance!.navigateToEnd();
@@ -256,45 +239,6 @@ class _CandlestickChartState extends State<CandlestickChart> {
       _controller.setTrendFilteringEnabled(widget.isTrendFilteringEnabled!);
     }
 
-    if (widget.isCubicCurveVisible != null) {
-      // LogService.instance.info('CandlestickChart', '3次曲线設定初期化: ${widget.isCubicCurveVisible}');
-      _controller.syncSettingsFromAppSettings(isCubicCurveVisible: widget.isCubicCurveVisible);
-    }
-
-    if (widget.isMA60FilteredCurveVisible != null) {
-      // LogService.instance.info('CandlestickChart', '60均线过滤曲线設定初期化: ${widget.isMA60FilteredCurveVisible}');
-      _controller.syncSettingsFromAppSettings(isMA60FilteredCurveVisible: widget.isMA60FilteredCurveVisible);
-    }
-
-    if (widget.isBollingerBandsFilteredCurveVisible != null) {
-      _controller.setBollingerBandsFilteredCurveVisible(widget.isBollingerBandsFilteredCurveVisible!);
-    }
-
-    // 布林通道設定初期化
-    if (widget.isBollingerBandsVisible != null) {
-      _controller.setBollingerBandsVisible(widget.isBollingerBandsVisible!);
-    }
-    if (widget.bbPeriod != null) {
-      _controller.setBBPeriod(widget.bbPeriod!);
-    }
-    if (widget.bbStdDev != null) {
-      _controller.setBBStdDev(widget.bbStdDev!);
-    }
-    if (widget.bbColors != null) {
-      _controller.setBBColors(
-        upperColor: widget.bbColors!['upper'] != null ? Color(int.parse(widget.bbColors!['upper']!)) : null,
-        middleColor: widget.bbColors!['middle'] != null ? Color(int.parse(widget.bbColors!['middle']!)) : null,
-        lowerColor: widget.bbColors!['lower'] != null ? Color(int.parse(widget.bbColors!['lower']!)) : null,
-      );
-    }
-    if (widget.bbAlphas != null) {
-      _controller.setBBAlphas(
-        upperAlpha: widget.bbAlphas!['upper'],
-        middleAlpha: widget.bbAlphas!['middle'],
-        lowerAlpha: widget.bbAlphas!['lower'],
-      );
-    }
-
     if (widget.isMaTrendBackgroundEnabled != null) {
       // LogService.instance.info('CandlestickChart', '移动平均线趋势背景設定初期化: ${widget.isMaTrendBackgroundEnabled}');
       _controller.setMaTrendBackgroundEnabled(widget.isMaTrendBackgroundEnabled!);
@@ -382,20 +326,6 @@ class _CandlestickChartState extends State<CandlestickChart> {
     if (widget.isTrendFilteringEnabled != oldWidget.isTrendFilteringEnabled && widget.isTrendFilteringEnabled != null) {
       // LogService.instance.info('CandlestickChart', 'トレンドフィルタリング設定更新: ${widget.isTrendFilteringEnabled}');
       _controller.setTrendFilteringEnabled(widget.isTrendFilteringEnabled!);
-    }
-
-    if (widget.isCubicCurveVisible != oldWidget.isCubicCurveVisible && widget.isCubicCurveVisible != null) {
-      // LogService.instance.info('CandlestickChart', '3次曲线設定更新: ${widget.isCubicCurveVisible}');
-      _controller.syncSettingsFromAppSettings(isCubicCurveVisible: widget.isCubicCurveVisible);
-    }
-
-    if (widget.isMA60FilteredCurveVisible != oldWidget.isMA60FilteredCurveVisible && widget.isMA60FilteredCurveVisible != null) {
-      // LogService.instance.info('CandlestickChart', '60均线过滤曲线設定更新: ${widget.isMA60FilteredCurveVisible}');
-      _controller.syncSettingsFromAppSettings(isMA60FilteredCurveVisible: widget.isMA60FilteredCurveVisible);
-    }
-
-    if (widget.isBollingerBandsFilteredCurveVisible != oldWidget.isBollingerBandsFilteredCurveVisible && widget.isBollingerBandsFilteredCurveVisible != null) {
-      _controller.setBollingerBandsFilteredCurveVisible(widget.isBollingerBandsFilteredCurveVisible!);
     }
 
     // 鼠标位置缩放设置更新
@@ -560,16 +490,6 @@ class _CandlestickChartState extends State<CandlestickChart> {
                           backgroundColor: widget.backgroundColor, // 背景色を渡す
                           isKlineVisible: widget.isKlineVisible ?? true, // K線表示/非表示
                           selectedTradingPair: widget.selectedTradingPair,
-                          cubicCurveResult: _controller.cubicCurveResult,
-                          isCubicCurveVisible: widget.isCubicCurveVisible ?? false,
-                          ma60FilteredCurveResult: _controller.ma60FilteredCurveResult,
-                          isMA60FilteredCurveVisible: widget.isMA60FilteredCurveVisible ?? false,
-                          bollingerBandsFilteredCurveResult: _controller.bollingerBandsFilteredCurveResult,
-                          isBollingerBandsFilteredCurveVisible: widget.isBollingerBandsFilteredCurveVisible ?? false,
-                          bollingerBands: _controller.getBollingerBandsData(),
-                          isBollingerBandsVisible: _controller.isBollingerBandsVisible,
-                          bbColors: _controller.bbColors,
-                          bbAlphas: _controller.bbAlphas,
                           isMaTrendBackgroundEnabled: widget.isMaTrendBackgroundEnabled ?? false,
                           maTrendBackgroundColors: _controller.maTrendBackgroundColors,
                           chartObjects: _buildObjectStickers(),
@@ -741,32 +661,6 @@ class _CandlestickChartState extends State<CandlestickChart> {
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             ),
             
-            // 布林通道表示制御ボタン
-            IconButton(
-              onPressed: _toggleBollingerBandsVisibility,
-              icon: Icon(
-                _controller.isBollingerBandsVisible ? Icons.show_chart : Icons.visibility_off,
-                color: _controller.isBollingerBandsVisible ? Colors.blue : Colors.white,
-                size: 20,
-              ),
-              tooltip: _controller.isBollingerBandsVisible ? '布林通道を非表示' : '布林通道を表示',
-              padding: const EdgeInsets.all(4),
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            ),
-            
-            // 布林通道设置ボタン
-            IconButton(
-              onPressed: _showBollingerBandsSettings,
-              icon: Icon(
-                Icons.tune,
-                color: _controller.isBollingerBandsVisible ? Colors.blue : Colors.grey,
-                size: 20,
-              ),
-              tooltip: '布林通道参数设置',
-              padding: const EdgeInsets.all(4),
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            ),
-            
             // 縦線描画ボタン
             IconButton(
               onPressed: _toggleVerticalLineMode,
@@ -776,42 +670,6 @@ class _CandlestickChartState extends State<CandlestickChart> {
                 size: 20,
               ),
               tooltip: _controller.isVerticalLineMode ? '縦線描画モードを終了' : '縦線描画モードに入る',
-              padding: const EdgeInsets.all(4),
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            ),
-
-            PopupMenuButton<DrawingTool>(
-              tooltip: '绘制面板',
-              onSelected: _setDrawingTool,
-              itemBuilder: (context) => const [
-                PopupMenuItem(value: DrawingTool.none, child: Text('关闭绘制')),
-                PopupMenuItem(value: DrawingTool.trendLine, child: Text('斜线')),
-                PopupMenuItem(value: DrawingTool.circle, child: Text('圆圈')),
-                PopupMenuItem(value: DrawingTool.rectangle, child: Text('长方形')),
-                PopupMenuItem(value: DrawingTool.fibonacci, child: Text('斐波那契')),
-                PopupMenuItem(value: DrawingTool.polyline, child: Text('折线图')),
-              ],
-              child: Icon(
-                Icons.draw,
-                color: _activeDrawingTool == DrawingTool.none ? Colors.white : Colors.greenAccent,
-                size: 20,
-              ),
-            ),
-
-            if (_activeDrawingTool != DrawingTool.none)
-              Text(
-                '绘制:${_activeDrawingTool.labelZh}',
-                style: TextStyle(color: Colors.greenAccent, fontSize: 10),
-              ),
-
-            IconButton(
-              onPressed: () => _setContinuousDrawingEnabled(!_isContinuousDrawingEnabled),
-              icon: Icon(
-                Icons.repeat,
-                color: _isContinuousDrawingEnabled ? Colors.greenAccent : Colors.white,
-                size: 20,
-              ),
-              tooltip: _isContinuousDrawingEnabled ? '连续绘制: 开' : '连续绘制: 关',
               padding: const EdgeInsets.all(4),
               constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             ),
@@ -1340,42 +1198,6 @@ class _CandlestickChartState extends State<CandlestickChart> {
     setState(() {
       _controller.toggleWavePointsVisibility();
     });
-  }
-
-  /// 布林通道表示切り替え
-  void _toggleBollingerBandsVisibility() {
-    setState(() {
-      _controller.setBollingerBandsVisible(!_controller.isBollingerBandsVisible);
-    });
-  }
-
-  /// 布林通道设置对话框を表示
-  void _showBollingerBandsSettings() {
-    showDialog(
-      context: context,
-      builder: (context) => BollingerBandsSettingsDialog(
-        currentPeriod: _controller.bbPeriod,
-        currentStdDev: _controller.bbStdDev,
-        currentColors: _controller.bbColors.map((key, value) => MapEntry(key, '0x${value.toARGB32().toRadixString(16).padLeft(8, '0').toUpperCase()}')),
-        currentAlphas: _controller.bbAlphas,
-        onSettingsChanged: (period, stdDev, colors, alphas) {
-          setState(() {
-            _controller.setBBPeriod(period);
-            _controller.setBBStdDev(stdDev);
-            _controller.setBBColors(
-              upperColor: Color(int.parse(colors['upper'] ?? '0xFF2196F3')),
-              middleColor: Color(int.parse(colors['middle'] ?? '0xFFFF9800')),
-              lowerColor: Color(int.parse(colors['lower'] ?? '0xFF2196F3')),
-            );
-            _controller.setBBAlphas(
-              upperAlpha: alphas['upper'],
-              middleAlpha: alphas['middle'],
-              lowerAlpha: alphas['lower'],
-            );
-          });
-        },
-      ),
-    );
   }
 
   bool _isDoubleTap(Offset localPosition, DateTime now) {

@@ -14,9 +14,8 @@ import '../controllers/moving_average_controller.dart';
 import '../controllers/chart_zoom_controller.dart';
 import '../controllers/wave_points_controller.dart';
 import '../controllers/manual_high_low_controller.dart';
-import '../controllers/bollinger_bands_controller.dart';
 import '../services/trend_filtering_service.dart';
-import '../services/bollinger_bands_filtering_service.dart';
+import '../services/ma150_pivot_trend_strategy_service.dart';
 import '../utils/kline_timestamp_utils.dart';
 
 /// Mixin制約を満たすための抽象基底クラス
@@ -26,8 +25,7 @@ abstract class _ChartControllerBase implements
     ChartZoomControllerHost,
     WavePointsControllerHost,
     ManualHighLowControllerHost,
-    MovingAverageControllerHost,
-    BollingerBandsControllerHost {
+  MovingAverageControllerHost {
   
   /// UI の更新を通知する (サブクラスで実装する必要があります)
   @override
@@ -76,8 +74,7 @@ class ChartViewController extends _ChartControllerBase
     KlineSelectionControllerMixin,
     ChartZoomControllerMixin,
     WavePointsControllerMixin,
-    ManualHighLowControllerMixin,
-    BollingerBandsControllerMixin {
+    ManualHighLowControllerMixin {
   
   // --- Configuration ---
   @override
@@ -129,10 +126,6 @@ class ChartViewController extends _ChartControllerBase
   int _trendFilteringMinGapBars = 5; // デフォルト5バー
   FilteredWavePoints? _filteredWavePoints;
 
-  // 布林线过滤曲线関連
-  bool _isBollingerBandsFilteredCurveVisible = false;
-  BollingerBandsFilteredCurveResult? _bollingerBandsFilteredCurveResult;
-
   int get dataLength => data.length;
   
   // 当前时间周期
@@ -175,7 +168,6 @@ class ChartViewController extends _ChartControllerBase
       initKlineSelections();
       initWavePoints();
       initManualHighLowPoints();
-      initBollingerBands(data);
     }
   }
   
@@ -241,8 +233,6 @@ class ChartViewController extends _ChartControllerBase
     onDataUpdatedForMA(data);
     // 波浪点を再計算
     onDataUpdatedForWavePoints();
-    // 布林通道を再計算
-    onDataUpdatedForBB(data);
 
     if (!preserveView) {
       // 大量データの場合は表示範囲を制限
@@ -479,8 +469,6 @@ class ChartViewController extends _ChartControllerBase
         onDataUpdatedForMA(data);
         // ウェーブポイントを再計算
         onDataUpdatedForWavePoints();
-        // 布林通道を再計算
-        onDataUpdatedForBB(data);
         
         // 应用klineDataLimit限制（如果设置了的话）
         LogService.instance.info('ChartViewController', '检查数据限制: klineDataLimit=$_klineDataLimit, 当前数据量=${data.length}');
@@ -706,12 +694,11 @@ class ChartViewController extends _ChartControllerBase
       LogService.instance.info('ChartViewController', '元の高低点: ${wavePoints!.mergedPoints.length}個');
       LogService.instance.info('ChartViewController', '閾値: ${(_trendFilteringThreshold * 100).toStringAsFixed(2)}%');
       
-      _filteredWavePoints = TrendFilteringService.instance.filterByMA150(
-        wavePoints!,
-        data,
-        ma150Series,
+      _filteredWavePoints = MA150PivotTrendStrategyService.instance.analyze(
+        priceDataList: data,
+        ma150Series: ma150Series,
         nearThreshold: _trendFilteringNearThreshold,
-        farThreshold: _trendFilteringFarThreshold,
+        pivotLookback: 4,
         minGapBars: _trendFilteringMinGapBars,
       );
 
@@ -836,90 +823,6 @@ class ChartViewController extends _ChartControllerBase
     
     LogService.instance.info('ChartViewController', '导航到结束位置, 显示范围: $startIndex - $endIndex');
     notifyUIUpdate();
-  }
-
-  // ==================== 布林线过滤曲线関連 ====================
-
-  /// 布林线过滤曲线が有効かどうか
-  bool get isBollingerBandsFilteredCurveVisible => _isBollingerBandsFilteredCurveVisible;
-
-  /// 布林线过滤曲线結果を取得
-  BollingerBandsFilteredCurveResult? get bollingerBandsFilteredCurveResult => _bollingerBandsFilteredCurveResult;
-
-  /// 布林线过滤曲线を有効/無効にする
-  void setBollingerBandsFilteredCurveVisible(bool visible) {
-    LogService.instance.info('ChartViewController', 'setBollingerBandsFilteredCurveVisible呼び出し: $visible');
-    
-    if (_isBollingerBandsFilteredCurveVisible != visible) {
-      _isBollingerBandsFilteredCurveVisible = visible;
-      LogService.instance.info('ChartViewController', '布林线过滤曲线状態変更: ${visible ? "有効" : "無効"}');
-    } else {
-      LogService.instance.info('ChartViewController', '布林线过滤曲线状態変更なし: $visible');
-    }
-    
-    // 状態に関係なく、有効な場合は常に更新を実行
-    if (visible) {
-      LogService.instance.info('ChartViewController', '布林线过滤曲线強制更新実行');
-      _updateBollingerBandsFilteredCurve();
-      notifyUIUpdate();
-    }
-  }
-
-  /// 布林线过滤曲线を更新
-  void _updateBollingerBandsFilteredCurve() {
-    LogService.instance.info('ChartViewController', '_updateBollingerBandsFilteredCurve開始');
-    LogService.instance.info('ChartViewController', 'isBollingerBandsFilteredCurveVisible: $_isBollingerBandsFilteredCurveVisible');
-    LogService.instance.info('ChartViewController', 'wavePoints: ${wavePoints != null ? "存在" : "null"}');
-    LogService.instance.info('ChartViewController', 'data.length: ${data.length}');
-    
-    if (!_isBollingerBandsFilteredCurveVisible) {
-      LogService.instance.info('ChartViewController', '布林线过滤曲线無効、_bollingerBandsFilteredCurveResultをnullに設定');
-      _bollingerBandsFilteredCurveResult = null;
-      return;
-    }
-    
-    // wavePointsがnullの場合は計算を試行
-    if (wavePoints == null) {
-      LogService.instance.info('ChartViewController', 'wavePointsがnull、計算を試行');
-      onDataUpdatedForWavePoints();
-      
-      if (wavePoints == null) {
-        LogService.instance.warning('ChartViewController', 'wavePoints計算後もnull、_bollingerBandsFilteredCurveResultをnullに設定');
-        _bollingerBandsFilteredCurveResult = null;
-        return;
-      }
-    }
-
-    try {
-      LogService.instance.info('ChartViewController', '布林通道データ取得開始');
-      final bbData = getBollingerBandsData();
-      LogService.instance.info('ChartViewController', '布林通道データ取得完了: ${bbData.keys.toList()}');
-      
-      if (bbData.isEmpty) {
-        LogService.instance.warning('ChartViewController', '布林通道データが利用できません');
-        _bollingerBandsFilteredCurveResult = null;
-        return;
-      }
-
-      LogService.instance.info('ChartViewController', '布林线过滤曲线実行開始');
-      LogService.instance.info('ChartViewController', '元の高低点: ${wavePoints!.mergedPoints.length}个');
-      LogService.instance.info('ChartViewController', '布林通道期間: $bbPeriod, 标准偏差: $bbStdDev');
-      
-      _bollingerBandsFilteredCurveResult = BollingerBandsFilteringService.instance.filterWavePointsByBollingerBands(
-        wavePoints: wavePoints!.mergedPoints,
-        priceDataList: data,
-        bollingerBands: bbData,
-        bbPeriod: bbPeriod,
-        bbStdDev: bbStdDev,
-      );
-
-      LogService.instance.info('ChartViewController', 
-        '布林线过滤曲线完成: 元${wavePoints!.mergedPoints.length}个 → 过滤后${_bollingerBandsFilteredCurveResult!.filteredPointsCount}个 '
-        '(过滤率${(_bollingerBandsFilteredCurveResult!.filteringRate * 100).toStringAsFixed(1)}%)');
-    } catch (e) {
-      LogService.instance.error('ChartViewController', '布林线过滤曲线失敗: $e');
-      _bollingerBandsFilteredCurveResult = null;
-    }
   }
 
   /// リソースのクリーンアップ

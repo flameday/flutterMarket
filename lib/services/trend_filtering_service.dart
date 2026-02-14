@@ -3,7 +3,6 @@ import '../models/wave_points.dart';
 import '../models/wave_point.dart';
 import '../models/price_data.dart';
 import 'log_service.dart';
-import 'curve_fitting_service.dart';
 
 /// トレンドフィルタリングサービス
 /// 150均線を基準に高低点をフィルタリングして、トレンドラインを明確にする
@@ -144,37 +143,12 @@ class TrendFilteringService {
     );
     LogService.instance.debug('TrendFilteringService', '滑らかな折線生成結果: ${smoothTrendLine != null ? "成功" : "失敗"}');
 
-    // 7. 生成拟合曲线
-    LogService.instance.debug('TrendFilteringService', '拟合曲线生成开始');
-    final allFilteredPoints = <WavePoint>[];
-    allFilteredPoints.addAll(cleanedHighPoints.map((p) => WavePoint(
-      timestamp: p['timestamp'] as int, // timestamp已经是int类型
-      price: p['value'] as double,
-      type: 'high',
-      index: p['index'] as int,
-    )));
-    allFilteredPoints.addAll(cleanedLowPoints.map((p) => WavePoint(
-      timestamp: p['timestamp'] as int, // timestamp已经是int类型
-      price: p['value'] as double,
-      type: 'low',
-      index: p['index'] as int,
-    )));
-    
-    final fittedCurve = CurveFittingService.instance.generateMovingAverageFittedCurve(
-      wavePoints: allFilteredPoints,
-      priceDataList: priceDataList,
-      windowSize: 20,
-      smoothingFactor: 0.3,
-    );
-    LogService.instance.debug('TrendFilteringService', '拟合曲线生成完成: ${fittedCurve.length}个点');
-
     return FilteredWavePoints(
       filteredHighPoints: cleanedHighPoints,
       filteredLowPoints: cleanedLowPoints,
       trendLines: trendLines,
       originalPoints: pivotPoints, // 元のピボットポイントを返す
       smoothTrendLine: smoothTrendLine, // 滑らかな折線を追加
-      fittedCurve: fittedCurve, // 拟合曲线
     );
   }
 
@@ -493,7 +467,6 @@ class FilteredWavePoints {
   final List<TrendLine> trendLines;
   final List<Map<String, dynamic>> originalPoints;
   final SmoothTrendLine? smoothTrendLine; // 滑らかな折線
-  final List<Map<String, dynamic>> fittedCurve; // 拟合曲线
 
   FilteredWavePoints({
     required this.filteredHighPoints,
@@ -501,7 +474,6 @@ class FilteredWavePoints {
     required this.trendLines,
     required this.originalPoints,
     this.smoothTrendLine,
-    this.fittedCurve = const [],
   });
 
   /// フィルタリングされた点の総数

@@ -584,42 +584,6 @@ class SmoothTrendPolylineObjectRenderer
   }
 }
 
-class FittedCurveObjectRenderer extends ChartObjectRenderer<FittedCurveObject> {
-  const FittedCurveObjectRenderer();
-
-  @override
-  void render(ChartObjectRenderContext context, FittedCurveObject object) {
-    if (object.points.length < 2) return;
-
-    final paint = Paint()
-      ..color = context.parseHexColor(object.color, Colors.blue)
-      ..strokeWidth = object.width
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final path = Path();
-    var first = true;
-    for (final point in object.points) {
-      final int? index = context.resolveAnchorIndex(point);
-      if (index == null) continue;
-      final x = context.candleXByIndex(index);
-      if (x < 0) continue;
-      final y = context.priceToY(point.price);
-      if (first) {
-        path.moveTo(x, y);
-        first = false;
-      } else {
-        path.lineTo(x, y);
-      }
-    }
-
-    if (!first) {
-      context.canvas.drawPath(path, paint);
-    }
-  }
-}
-
 class CircleObjectRenderer extends ChartObjectRenderer<CircleObject> {
   const CircleObjectRenderer();
 
@@ -730,7 +694,6 @@ class ChartObjectRendererRegistry {
               FilteredWavePointObjectRenderer(),
               TrendAnalysisLineObjectRenderer(),
               SmoothTrendPolylineObjectRenderer(),
-              FittedCurveObjectRenderer(),
               CircleObjectRenderer(),
               RectangleObjectRenderer(),
               FreePolylineObjectRenderer(),

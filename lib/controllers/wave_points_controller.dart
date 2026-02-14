@@ -3,8 +3,6 @@ import '../models/wave_points.dart';
 import '../models/wave_point.dart';
 import '../services/wave_points_service.dart';
 import '../services/wave_interpolation_service.dart';
-import '../services/cubic_curve_fitting_service.dart';
-import '../services/ma60_filtering_service.dart';
 import '../services/log_service.dart';
 
 /// Mixinが依存するホストクラスのインターフェースを定義
@@ -28,14 +26,6 @@ mixin WavePointsControllerMixin on WavePointsControllerHost {
   String _selectedInterpolationMethod = 'chaikin';
   bool _isFormattedWaveVisible = false;
 
-  // 3次曲线相关
-  CubicCurveResult? _cubicCurveResult;
-  bool _isCubicCurveVisible = false;
-
-  // 60均线过滤曲线相关
-  MA60FilteredCurveResult? _ma60FilteredCurveResult;
-  bool _isMA60FilteredCurveVisible = false;
-
   /// Mixinを初期化
   Future<void> initWavePoints() async {
     try {
@@ -49,96 +39,6 @@ mixin WavePointsControllerMixin on WavePointsControllerHost {
     }
   }
 
-  /// 3次曲线计算
-  void _calculateCubicCurve() {
-    if (_wavePoints == null || _wavePoints!.mergedPoints.isEmpty) {
-      LogService.instance.warning('WavePointsController', '波浪点数据为空，无法计算3次曲线');
-      _cubicCurveResult = null;
-      return;
-    }
-
-    try {
-      _cubicCurveResult = CubicCurveFittingService.instance.generateCubicCurve(
-        wavePoints: _wavePoints!,
-        priceDataList: data,
-        windowDays: 7,
-      );
-      LogService.instance.info('WavePointsController', '3次曲线计算完成: ${_cubicCurveResult!.points.length}个点, R²=${_cubicCurveResult!.rSquared.toStringAsFixed(4)}');
-    } catch (e) {
-      LogService.instance.error('WavePointsController', '3次曲线计算失败: $e');
-      _cubicCurveResult = null;
-    }
-  }
-
-  /// 切换3次曲线显示状态
-  void toggleCubicCurveVisibility() {
-    _isCubicCurveVisible = !_isCubicCurveVisible;
-    LogService.instance.info('WavePointsController', '3次曲线显示状态切换: $_isCubicCurveVisible');
-    
-    // 如果启用显示且还没有计算过，则计算3次曲线
-    if (_isCubicCurveVisible && _cubicCurveResult == null) {
-      _calculateCubicCurve();
-    }
-    
-    notifyUIUpdate();
-  }
-
-  /// 获取3次曲线结果
-  CubicCurveResult? get cubicCurveResult => _cubicCurveResult;
-
-  /// 获取3次曲线显示状态
-  bool get isCubicCurveVisible => _isCubicCurveVisible;
-
-  /// 60均线过滤曲线计算
-  void _calculateMA60FilteredCurve() {
-    if (_wavePoints == null || _wavePoints!.mergedPoints.isEmpty) {
-      LogService.instance.warning('WavePointsController', '波浪点数据为空，无法计算60均线过滤曲线');
-      _ma60FilteredCurveResult = null;
-      return;
-    }
-
-    try {
-      // 获取60均线数据
-      final maData = getMovingAveragesData();
-      final ma60Series = maData[60];
-      
-      if (ma60Series == null || ma60Series.isEmpty) {
-        LogService.instance.warning('WavePointsController', '60均线数据为空，无法计算60均线过滤曲线');
-        _ma60FilteredCurveResult = null;
-        return;
-      }
-
-      _ma60FilteredCurveResult = MA60FilteringService.instance.generateMA60FilteredCurve(
-        wavePoints: _wavePoints!,
-        priceDataList: data,
-        ma60Series: ma60Series,
-      );
-      LogService.instance.info('WavePointsController', '60均线过滤曲线计算完成: ${_ma60FilteredCurveResult!.points.length}个点');
-    } catch (e) {
-      LogService.instance.error('WavePointsController', '60均线过滤曲线计算失败: $e');
-      _ma60FilteredCurveResult = null;
-    }
-  }
-
-  /// 切换60均线过滤曲线显示状态
-  void toggleMA60FilteredCurveVisibility() {
-    _isMA60FilteredCurveVisible = !_isMA60FilteredCurveVisible;
-    LogService.instance.info('WavePointsController', '60均线过滤曲线显示状态切换: $_isMA60FilteredCurveVisible');
-    
-    // 如果启用显示且还没有计算过，则计算60均线过滤曲线
-    if (_isMA60FilteredCurveVisible && _ma60FilteredCurveResult == null) {
-      _calculateMA60FilteredCurve();
-    }
-    
-    notifyUIUpdate();
-  }
-
-  /// 获取60均线过滤曲线结果
-  MA60FilteredCurveResult? get ma60FilteredCurveResult => _ma60FilteredCurveResult;
-
-  /// 获取60均线过滤曲线显示状态
-  bool get isMA60FilteredCurveVisible => _isMA60FilteredCurveVisible;
-
   /// 設定から初期値を同期（外部から呼び出し可能）
   void syncSettingsFromAppSettings({
     String? selectedInterpolationMethod,
@@ -146,8 +46,6 @@ mixin WavePointsControllerMixin on WavePointsControllerHost {
     bool? isWavePointsVisible,
     bool? isWavePointsLineVisible,
     bool? isTrendFilteringEnabled,
-    bool? isCubicCurveVisible,
-    bool? isMA60FilteredCurveVisible,
   }) {
     bool settingsChanged = false;
     
@@ -175,28 +73,6 @@ mixin WavePointsControllerMixin on WavePointsControllerHost {
       settingsChanged = true;
     }
 
-    if (isCubicCurveVisible != null && isCubicCurveVisible != _isCubicCurveVisible) {
-      Log.info('WavePointsController', '設定同期: 3次曲线显示 $_isCubicCurveVisible -> $isCubicCurveVisible');
-      _isCubicCurveVisible = isCubicCurveVisible;
-      settingsChanged = true;
-      
-      // 如果启用显示且还没有计算过，则计算3次曲线
-      if (_isCubicCurveVisible && _cubicCurveResult == null) {
-        _calculateCubicCurve();
-      }
-    }
-
-    if (isMA60FilteredCurveVisible != null && isMA60FilteredCurveVisible != _isMA60FilteredCurveVisible) {
-      Log.info('WavePointsController', '設定同期: 60均线过滤曲线显示 $_isMA60FilteredCurveVisible -> $isMA60FilteredCurveVisible');
-      _isMA60FilteredCurveVisible = isMA60FilteredCurveVisible;
-      settingsChanged = true;
-      
-      // 如果启用显示且还没有计算过，则计算60均线过滤曲线
-      if (_isMA60FilteredCurveVisible && _ma60FilteredCurveResult == null) {
-        _calculateMA60FilteredCurve();
-      }
-    }
-    
     if (settingsChanged && _wavePoints != null) {
       Log.info('WavePointsController', '設定同期完了 - フォーマット波再生成');
       _generateFormattedWaves();
@@ -237,22 +113,6 @@ mixin WavePointsControllerMixin on WavePointsControllerHost {
         Log.info('WavePointsController', 'フォーマット波非表示 - 生成スキップ');
       }
 
-      // 3次曲线を生成（如果启用显示）
-      if (_isCubicCurveVisible) {
-        Log.info('WavePointsController', '3次曲线表示中 - 生成開始');
-        _calculateCubicCurve();
-      } else {
-        Log.info('WavePointsController', '3次曲线非表示 - 生成スキップ');
-      }
-
-      // 60均线过滤曲线を生成（如果启用显示）
-      if (_isMA60FilteredCurveVisible) {
-        Log.info('WavePointsController', '60均线过滤曲线表示中 - 生成開始');
-        _calculateMA60FilteredCurve();
-      } else {
-        Log.info('WavePointsController', '60均线过滤曲线非表示 - 生成スキップ');
-      }
-      
       stopwatch.stop();
       Log.info('WavePointsController', 'ウェーブポイント計算完了: 高値${_wavePoints!.totalHighPoints}個, 安値${_wavePoints!.totalLowPoints}個 (${stopwatch.elapsedMilliseconds}ms, データ量: ${data.length})');
       

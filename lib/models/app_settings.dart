@@ -22,14 +22,6 @@ class AppSettings {
   final double trendFilteringNearThreshold; // 近い距離の閾値
   final double trendFilteringFarThreshold; // 遠い距離の閾値
   final int trendFilteringMinGapBars; // 最低バー間隔
-  final bool isCubicCurveVisible; // 3次曲线显示/隐藏
-  final bool isMA60FilteredCurveVisible; // 60均线过滤曲线显示/隐藏
-  final bool isBollingerBandsFilteredCurveVisible; // 布林线过滤曲线显示/隐藏
-  final bool isBollingerBandsVisible; // 布林通道显示/隐藏
-  final int bbPeriod; // 布林通道期间
-  final double bbStdDev; // 布林通道标准偏差倍率
-  final Map<String, String> bbColors; // 布林通道色设定
-  final Map<String, double> bbAlphas; // 布林通道透明度设定
   final bool isGridVisible;
   final bool isCrosshairVisible;
   final String themeMode; // 'light', 'dark', 'system'
@@ -74,22 +66,6 @@ class AppSettings {
       this.trendFilteringNearThreshold = 0.005, // デフォルト0.5%
       this.trendFilteringFarThreshold = 0.015, // デフォルト1.5%
       this.trendFilteringMinGapBars = 3, // デフォルト3バー
-    this.isCubicCurveVisible = false, // デフォルトで3次曲线を非表示
-    this.isMA60FilteredCurveVisible = false, // デフォルトで60均线过滤曲线を非表示
-    this.isBollingerBandsFilteredCurveVisible = false, // デフォルトで布林线过滤曲线を非表示
-    this.isBollingerBandsVisible = false, // デフォルトで布林通道を非表示
-    this.bbPeriod = 20, // デフォルト20期間
-    this.bbStdDev = 1.3, // デフォルト2倍標準偏差
-    this.bbColors = const {
-      'upper': '0xFF2196F3', // 青
-      'middle': '0xFFFF9800', // オレンジ
-      'lower': '0xFF2196F3', // 青
-    },
-    this.bbAlphas = const {
-      'upper': 0.7,
-      'middle': 0.8,
-      'lower': 0.7,
-    },
     this.isGridVisible = true,
     this.isCrosshairVisible = true,
     this.themeMode = 'system',
@@ -126,14 +102,6 @@ class AppSettings {
       trendFilteringNearThreshold: (json['trendFilteringNearThreshold'] ?? defaults.trendFilteringNearThreshold).toDouble(),
       trendFilteringFarThreshold: (json['trendFilteringFarThreshold'] ?? defaults.trendFilteringFarThreshold).toDouble(),
       trendFilteringMinGapBars: json['trendFilteringMinGapBars'] ?? defaults.trendFilteringMinGapBars,
-      isCubicCurveVisible: json['isCubicCurveVisible'] ?? defaults.isCubicCurveVisible,
-      isMA60FilteredCurveVisible: json['isMA60FilteredCurveVisible'] ?? defaults.isMA60FilteredCurveVisible,
-      isBollingerBandsFilteredCurveVisible: json['isBollingerBandsFilteredCurveVisible'] ?? defaults.isBollingerBandsFilteredCurveVisible,
-      isBollingerBandsVisible: json['isBollingerBandsVisible'] ?? defaults.isBollingerBandsVisible,
-      bbPeriod: json['bbPeriod'] ?? defaults.bbPeriod,
-      bbStdDev: (json['bbStdDev'] ?? defaults.bbStdDev).toDouble(),
-      bbColors: Map<String, String>.from(json['bbColors'] ?? defaults.bbColors),
-      bbAlphas: Map<String, double>.from(json['bbAlphas'] ?? defaults.bbAlphas),
       isGridVisible: json['isGridVisible'] ?? defaults.isGridVisible,
       isCrosshairVisible: json['isCrosshairVisible'] ?? defaults.isCrosshairVisible,
       themeMode: json['themeMode'] ?? defaults.themeMode,
@@ -170,14 +138,6 @@ class AppSettings {
       'trendFilteringNearThreshold': trendFilteringNearThreshold,
       'trendFilteringFarThreshold': trendFilteringFarThreshold,
       'trendFilteringMinGapBars': trendFilteringMinGapBars,
-      'isCubicCurveVisible': isCubicCurveVisible,
-      'isMA60FilteredCurveVisible': isMA60FilteredCurveVisible,
-      'isBollingerBandsFilteredCurveVisible': isBollingerBandsFilteredCurveVisible,
-      'isBollingerBandsVisible': isBollingerBandsVisible,
-      'bbPeriod': bbPeriod,
-      'bbStdDev': bbStdDev,
-      'bbColors': bbColors,
-      'bbAlphas': bbAlphas,
       'isGridVisible': isGridVisible,
       'isCrosshairVisible': isCrosshairVisible,
       'themeMode': themeMode,
@@ -213,14 +173,6 @@ class AppSettings {
     double? trendFilteringNearThreshold,
     double? trendFilteringFarThreshold,
     int? trendFilteringMinGapBars,
-    bool? isCubicCurveVisible,
-    bool? isMA60FilteredCurveVisible,
-    bool? isBollingerBandsFilteredCurveVisible,
-    bool? isBollingerBandsVisible,
-    int? bbPeriod,
-    double? bbStdDev,
-    Map<String, String>? bbColors,
-    Map<String, double>? bbAlphas,
     bool? isGridVisible,
     bool? isCrosshairVisible,
     String? themeMode,
@@ -252,14 +204,6 @@ class AppSettings {
       trendFilteringNearThreshold: trendFilteringNearThreshold ?? this.trendFilteringNearThreshold,
       trendFilteringFarThreshold: trendFilteringFarThreshold ?? this.trendFilteringFarThreshold,
       trendFilteringMinGapBars: trendFilteringMinGapBars ?? this.trendFilteringMinGapBars,
-      isCubicCurveVisible: isCubicCurveVisible ?? this.isCubicCurveVisible,
-      isMA60FilteredCurveVisible: isMA60FilteredCurveVisible ?? this.isMA60FilteredCurveVisible,
-      isBollingerBandsFilteredCurveVisible: isBollingerBandsFilteredCurveVisible ?? this.isBollingerBandsFilteredCurveVisible,
-      isBollingerBandsVisible: isBollingerBandsVisible ?? this.isBollingerBandsVisible,
-      bbPeriod: bbPeriod ?? this.bbPeriod,
-      bbStdDev: bbStdDev ?? this.bbStdDev,
-      bbColors: bbColors ?? this.bbColors,
-      bbAlphas: bbAlphas ?? this.bbAlphas,
       isGridVisible: isGridVisible ?? this.isGridVisible,
       isCrosshairVisible: isCrosshairVisible ?? this.isCrosshairVisible,
       themeMode: themeMode ?? this.themeMode,

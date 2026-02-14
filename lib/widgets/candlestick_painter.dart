@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 import '../models/chart_object.dart';
 import '../models/price_data.dart';
-import '../services/cubic_curve_fitting_service.dart';
-import '../services/ma60_filtering_service.dart';
-import '../services/bollinger_bands_filtering_service.dart';
 import '../constants/chart_constants.dart';
 import '../services/log_service.dart';
 import '../models/trading_pair.dart';
-import 'painters/bollinger_bands_painter.dart';
 import 'painters/chart_object_renderer.dart';
 
 /// キャンドルスティックチャートを描画するカスタムPainter
@@ -34,16 +30,6 @@ class CandlestickPainter extends CustomPainter {
   final Map<int, bool>? maVisibility; // 移動平均線の表示状態
   final Map<int, String>? maColorSettings; // MA色設定
   final Map<int, double>? maAlphas; // MA透明度設定
-  final CubicCurveResult? cubicCurveResult; // 3次曲线数据
-  final bool isCubicCurveVisible; // 3次曲线是否可见
-  final MA60FilteredCurveResult? ma60FilteredCurveResult; // 60均线过滤曲线数据
-  final bool isMA60FilteredCurveVisible; // 60均线过滤曲线是否可见
-  final BollingerBandsFilteredCurveResult? bollingerBandsFilteredCurveResult; // 布林线过滤曲线数据
-  final bool isBollingerBandsFilteredCurveVisible; // 布林线过滤曲线是否可见
-  final Map<String, List<double>>? bollingerBands; // 布林通道データ
-  final bool isBollingerBandsVisible; // 布林通道が表示されるか
-  final Map<String, Color>? bbColors; // 布林通道色設定
-  final Map<String, double>? bbAlphas; // 布林通道透明度設定
   final Color? backgroundColor; // 背景色
   final bool isKlineVisible; // K線表示/非表示
   final bool isMaTrendBackgroundEnabled; // 移动平均线趋势背景是否启用
@@ -74,16 +60,6 @@ class CandlestickPainter extends CustomPainter {
     this.maAlphas,
     this.backgroundColor,
     this.isKlineVisible = true,
-    this.cubicCurveResult,
-    this.isCubicCurveVisible = false,
-    this.ma60FilteredCurveResult,
-    this.isMA60FilteredCurveVisible = false,
-    this.bollingerBandsFilteredCurveResult,
-    this.isBollingerBandsFilteredCurveVisible = false,
-    this.bollingerBands,
-    this.isBollingerBandsVisible = false,
-    this.bbColors,
-    this.bbAlphas,
     this.isMaTrendBackgroundEnabled = false,
     this.maTrendBackgroundColors,
     this.selectedTradingPair,
@@ -163,50 +139,6 @@ class CandlestickPainter extends CustomPainter {
     _drawCrosshairAndLabels(canvas, size);
 
     // 线/形类覆盖物统一走 Object 管线，不再使用旧直绘回退路径。
-
-    // 3次曲线绘制
-    if (isCubicCurveVisible && cubicCurveResult != null) {
-      // // LogService.instance.debug('CandlestickPainter', '3次曲线描画開始');
-      _drawCubicCurve(canvas);
-      // // LogService.instance.debug('CandlestickPainter', '3次曲线描画完了');
-    } else {
-      // // LogService.instance.debug('CandlestickPainter', '3次曲线無効、描画スキップ');
-    }
-
-    // 60均线过滤曲线绘制
-    if (isMA60FilteredCurveVisible && ma60FilteredCurveResult != null) {
-      // // LogService.instance.debug('CandlestickPainter', '60均线过滤曲线描画開始');
-      _drawMA60FilteredCurve(canvas);
-      // // LogService.instance.debug('CandlestickPainter', '60均线过滤曲线描画完了');
-    } else {
-      // // LogService.instance.debug('CandlestickPainter', '60均线过滤曲线無効、描画スキップ');
-    }
-
-    // 布林线过滤曲线绘制
-    if (isBollingerBandsFilteredCurveVisible && bollingerBandsFilteredCurveResult != null) {
-      _drawBollingerBandsFilteredCurve(canvas);
-    }
-
-    // 布林通道绘制
-    if (isBollingerBandsVisible && bollingerBands != null && bollingerBands!.isNotEmpty) {
-      BollingerBandsPainter.drawBollingerBands(
-        canvas,
-        size,
-        data,
-        bollingerBands!,
-        bbColors ?? {},
-        bbAlphas ?? {},
-        candleWidth,
-        spacing,
-        minPrice,
-        maxPrice,
-        startIndex,
-        endIndex,
-        chartHeight,
-        chartWidth,
-        emptySpaceWidth,
-      );
-    }
 
     // ==========================
     // 3) 用户手绘层（User Drawings）
@@ -741,185 +673,6 @@ class CandlestickPainter extends CustomPainter {
     final int relativeIndex = candleIndex - startIndex;
     // Return the center of the candle
     return startDrawX + (relativeIndex * totalWidth) + (candleWidth / 2);
-  }
-
-
-  /// 3次曲线绘制
-  void _drawCubicCurve(Canvas canvas) {
-    if (cubicCurveResult == null || cubicCurveResult!.points.isEmpty) {
-      // LogService.instance.debug('CandlestickPainter', '3次曲线数据为空，跳过绘制');
-      return;
-    }
-
-    final points = cubicCurveResult!.points;
-    // LogService.instance.debug('CandlestickPainter', '3次曲线绘制开始: ${points.length}个点, R²=${cubicCurveResult!.rSquared.toStringAsFixed(4)}');
-
-    // 紫色曲线绘制
-    final paint = Paint()
-      ..color = Colors.purple
-      ..strokeWidth = 3.0
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final path = Path();
-    bool isFirstPoint = true;
-    int drawnPoints = 0;
-
-    for (final point in points) {
-      final x = _getCandleXPosition(point.index);
-      if (x < 0) {
-        continue;
-      }
-
-      final y = _priceToY(point.value, chartHeight);
-      final position = Offset(x, y);
-
-      if (isFirstPoint) {
-        path.moveTo(position.dx, position.dy);
-        isFirstPoint = false;
-      } else {
-        path.lineTo(position.dx, position.dy);
-      }
-      drawnPoints++;
-    }
-
-    if (drawnPoints > 0) {
-      canvas.drawPath(path, paint);
-      // LogService.instance.debug('CandlestickPainter', '3次曲线绘制完成: $drawnPoints个点, 跳过$skippedPoints个点');
-    } else {
-      // LogService.instance.debug('CandlestickPainter', '3次曲线绘制跳过: 没有可绘制的点');
-    }
-  }
-
-  /// 60均线过滤曲线绘制
-  void _drawMA60FilteredCurve(Canvas canvas) {
-    if (ma60FilteredCurveResult == null || ma60FilteredCurveResult!.points.isEmpty) {
-      // LogService.instance.debug('CandlestickPainter', '60均线过滤曲线数据为空，跳过绘制');
-      return;
-    }
-
-    final points = ma60FilteredCurveResult!.points;
-    // LogService.instance.debug('CandlestickPainter', '60均线过滤曲线绘制开始: ${points.length}个点');
-
-    // 青色曲线绘制
-    final paint = Paint()
-      ..color = Colors.cyan
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final path = Path();
-    bool isFirstPoint = true;
-    int drawnPoints = 0;
-
-    for (final point in points) {
-      final x = _getCandleXPosition(point.index);
-      if (x < 0) {
-        continue;
-      }
-
-      final y = _priceToY(point.value, chartHeight);
-      final position = Offset(x, y);
-
-      if (isFirstPoint) {
-        path.moveTo(position.dx, position.dy);
-        isFirstPoint = false;
-      } else {
-        path.lineTo(position.dx, position.dy);
-      }
-      drawnPoints++;
-    }
-
-    if (drawnPoints > 0) {
-      canvas.drawPath(path, paint);
-      // LogService.instance.debug('CandlestickPainter', '60均线过滤曲线绘制完成: $drawnPoints个点, 跳过$skippedPoints个点');
-    } else {
-      // LogService.instance.debug('CandlestickPainter', '60均线过滤曲线绘制跳过: 没有可绘制的点');
-    }
-  }
-
-  /// 布林线过滤曲线绘制
-  void _drawBollingerBandsFilteredCurve(Canvas canvas) {
-    if (bollingerBandsFilteredCurveResult == null || bollingerBandsFilteredCurveResult!.points.isEmpty) {
-      return;
-    }
-
-    final points = bollingerBandsFilteredCurveResult!.points;
-
-    // 紫色曲线绘制
-    final linePaint = Paint()
-      ..color = Colors.purple
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-
-    final path = Path();
-    bool isFirstPoint = true;
-    int drawnPoints = 0;
-
-    // 先绘制连接线
-    for (final point in points) {
-      final x = _getCandleXPosition(point['index']);
-      if (x < 0) {
-        continue;
-      }
-
-      final y = _priceToY(point['value'], chartHeight);
-      final position = Offset(x, y);
-
-      if (isFirstPoint) {
-        path.moveTo(position.dx, position.dy);
-        isFirstPoint = false;
-      } else {
-        path.lineTo(position.dx, position.dy);
-      }
-      drawnPoints++;
-    }
-
-    if (drawnPoints > 0) {
-      canvas.drawPath(path, linePaint);
-    }
-
-    // 绘制实心填充的高低点
-    for (final point in points) {
-      final x = _getCandleXPosition(point['index']);
-      if (x < 0) {
-        continue;
-      }
-
-      final y = _priceToY(point['value'], chartHeight);
-      final position = Offset(x, y);
-
-      // 根据点的类型选择颜色
-      final pointType = point['originalType'] as String?;
-      Color fillColor;
-      
-      if (pointType == 'high') {
-        fillColor = Colors.red; // 高点用红色
-      } else if (pointType == 'low') {
-        fillColor = Colors.green; // 低点用绿色
-      } else {
-        fillColor = Colors.purple; // 默认用紫色
-      }
-
-      // 绘制实心圆点
-      final dotPaint = Paint()
-        ..color = fillColor
-        ..style = PaintingStyle.fill;
-
-      canvas.drawCircle(position, 4.0, dotPaint);
-
-      // 绘制白色边框
-      final borderPaint = Paint()
-        ..color = Colors.white
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0;
-
-      canvas.drawCircle(position, 4.0, borderPaint);
-    }
   }
 
   /// 绘制移动平均线趋势背景

@@ -542,39 +542,6 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
             constraints: const BoxConstraints(),
           ),
           IconButton(
-            onPressed: _toggleCubicCurve,
-            icon: Icon(
-              _appSettings?.isCubicCurveVisible == true ? Icons.show_chart : Icons.show_chart_outlined,
-              size: 20,
-              color: _appSettings?.isCubicCurveVisible == true ? Colors.purple : Colors.grey,
-            ),
-            tooltip: '3次曲线',
-            padding: const EdgeInsets.all(8),
-            constraints: const BoxConstraints(),
-          ),
-          IconButton(
-            onPressed: _toggleMA60FilteredCurve,
-            icon: Icon(
-              _appSettings?.isMA60FilteredCurveVisible == true ? Icons.timeline : Icons.timeline_outlined,
-              size: 20,
-              color: _appSettings?.isMA60FilteredCurveVisible == true ? Colors.cyan : Colors.grey,
-            ),
-            tooltip: '60均线过滤曲线',
-            padding: const EdgeInsets.all(8),
-            constraints: const BoxConstraints(),
-          ),
-          IconButton(
-            onPressed: _toggleBollingerBandsFilteredCurve,
-            icon: Icon(
-              _appSettings?.isBollingerBandsFilteredCurveVisible == true ? Icons.timeline : Icons.timeline_outlined,
-              size: 20,
-              color: _appSettings?.isBollingerBandsFilteredCurveVisible == true ? Colors.purple : Colors.grey,
-            ),
-            tooltip: '布林线过滤曲线',
-            padding: const EdgeInsets.all(8),
-            constraints: const BoxConstraints(),
-          ),
-          IconButton(
             onPressed: _toggleMaTrendBackground,
             icon: Icon(
               _appSettings?.isMaTrendBackgroundEnabled == true ? Icons.color_lens : Icons.color_lens_outlined,
@@ -1145,50 +1112,6 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                     ),
                     const SizedBox(height: 8),
 
-                    // 3次曲线设置
-                    const Text('3次曲线设置:', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: _appSettings?.isCubicCurveVisible ?? false,
-                          onChanged: (bool? value) {
-                            if (_appSettings != null) {
-                          dialogSetState(() {
-                                _appSettings = _appSettings!.copyWith(isCubicCurveVisible: value ?? false);
-                          });
-                          // 立即更新主UI以预览效果
-                          setState(() {});
-                        }
-                      },
-                        ),
-                        const Text('显示3次曲线'),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    // 60均线过滤曲线设置
-                    const Text('60均线过滤曲线设置:', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: _appSettings?.isMA60FilteredCurveVisible ?? false,
-                          onChanged: (bool? value) {
-                            if (_appSettings != null) {
-                          dialogSetState(() {
-                                _appSettings = _appSettings!.copyWith(isMA60FilteredCurveVisible: value ?? false);
-                          });
-                          // 立即更新主UI以预览效果
-                          setState(() {});
-                        }
-                      },
-                        ),
-                        const Text('显示60均线过滤曲线'),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    
                     // 近い距離の閾値
                     const Text('近い距離の閾値:'),
                     Row(
@@ -1633,92 +1556,6 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
     LogService.instance.info('Main', 'トレンドフィルタリング切り替え完了');
   }
 
-  /// 3次曲线显示/隐藏的切换
-  void _toggleCubicCurve() {
-    LogService.instance.info('Main', '3次曲线切换开始');
-    
-    setState(() {
-      final currentVisible = _appSettings?.isCubicCurveVisible ?? false;
-      LogService.instance.info('Main', '当前3次曲线显示状态: $currentVisible -> ${!currentVisible}');
-      
-      _appSettings = _appSettings?.copyWith(
-        isCubicCurveVisible: !currentVisible,
-      );
-      
-      LogService.instance.info('Main', '设置更新后: ${_appSettings?.isCubicCurveVisible}');
-    });
-
-    // 保存设置
-    _saveSettings();
-
-    // 状态消息を表示
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: SelectableText(
-          _appSettings?.isCubicCurveVisible == true 
-            ? '3次曲线已启用' 
-            : '3次曲线已禁用'
-        ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-    
-    LogService.instance.info('Main', '3次曲线切换完成');
-  }
-
-  /// 60均线过滤曲线显示/隐藏的切换
-  void _toggleMA60FilteredCurve() {
-    LogService.instance.info('Main', '60均线过滤曲线切换开始');
-    
-    setState(() {
-      final currentVisible = _appSettings?.isMA60FilteredCurveVisible ?? false;
-      LogService.instance.info('Main', '当前60均线过滤曲线显示状态: $currentVisible -> ${!currentVisible}');
-      
-      _appSettings = _appSettings?.copyWith(
-        isMA60FilteredCurveVisible: !currentVisible,
-      );
-      
-      LogService.instance.info('Main', '设置更新后: ${_appSettings?.isMA60FilteredCurveVisible}');
-    });
-
-    // 保存设置
-    _saveSettings();
-
-    // 状态消息を表示
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: SelectableText(
-          _appSettings?.isMA60FilteredCurveVisible == true 
-            ? '60均线过滤曲线已启用' 
-            : '60均线过滤曲线已禁用'
-        ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-    
-    LogService.instance.info('Main', '60均线过滤曲线切换完成');
-  }
-
-  /// 布林线过滤曲线显示/隐藏的切换
-  void _toggleBollingerBandsFilteredCurve() {
-    LogService.instance.info('Main', '布林线过滤曲线切换开始');
-    
-    setState(() {
-      final currentVisible = _appSettings?.isBollingerBandsFilteredCurveVisible ?? false;
-      LogService.instance.info('Main', '当前布林线过滤曲线显示状态: $currentVisible -> ${!currentVisible}');
-      
-      _appSettings = _appSettings?.copyWith(
-        isBollingerBandsFilteredCurveVisible: !currentVisible,
-      );
-
-      LogService.instance.info('Main', '布林线过滤曲线设置更新完成: ${_appSettings?.isBollingerBandsFilteredCurveVisible}');
-    });
-    
-    _saveSettings();
-    
-    LogService.instance.info('Main', '布林线过滤曲线切换完成');
-  }
-
   /// 移动平均线趋势背景切换
   void _toggleMaTrendBackground() {
     LogService.instance.info('Main', '移动平均线趋势背景切换开始');
@@ -1916,14 +1753,6 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
       trendFilteringNearThreshold: _appSettings?.trendFilteringNearThreshold,
       trendFilteringFarThreshold: _appSettings?.trendFilteringFarThreshold,
       trendFilteringMinGapBars: _appSettings?.trendFilteringMinGapBars,
-      isCubicCurveVisible: _appSettings?.isCubicCurveVisible,
-        isMA60FilteredCurveVisible: _appSettings?.isMA60FilteredCurveVisible,
-        isBollingerBandsFilteredCurveVisible: _appSettings?.isBollingerBandsFilteredCurveVisible,
-        isBollingerBandsVisible: _appSettings?.isBollingerBandsVisible,
-      bbPeriod: _appSettings?.bbPeriod,
-      bbStdDev: _appSettings?.bbStdDev,
-      bbColors: _appSettings?.bbColors,
-      bbAlphas: _appSettings?.bbAlphas,
       isMaTrendBackgroundEnabled: _appSettings?.isMaTrendBackgroundEnabled,
       isMousePositionZoomEnabled: _appSettings?.isMousePositionZoomEnabled,
       isAutoUpdateEnabled: _appSettings?.isAutoUpdateEnabled,
