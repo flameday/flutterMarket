@@ -108,6 +108,7 @@ class WavePointObject extends ChartObject {
   const WavePointObject({
     required super.id,
     required this.index,
+    this.timestamp,
     required this.price,
     required this.isHigh,
     super.layer = ChartObjectLayer.aboveIndicators,
@@ -115,6 +116,7 @@ class WavePointObject extends ChartObject {
   });
 
   final int index;
+  final int? timestamp;
   final double price;
   final bool isHigh;
 }
@@ -172,6 +174,7 @@ class FilteredWavePointObject extends ChartObject {
   const FilteredWavePointObject({
     required super.id,
     required this.index,
+    this.timestamp,
     required this.price,
     required this.pointKind,
     super.layer = ChartObjectLayer.aboveIndicators,
@@ -179,6 +182,7 @@ class FilteredWavePointObject extends ChartObject {
   });
 
   final int index;
+  final int? timestamp;
   final double price;
   final String pointKind; // original_high/original_low/filtered_high/filtered_low
 }

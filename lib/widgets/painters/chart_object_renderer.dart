@@ -49,28 +49,7 @@ class ChartObjectRenderContext {
   }
 
   int? findKlineIndexByTimestamp(int timestamp) {
-    if (data.isEmpty) return null;
-
-    int low = 0;
-    int high = data.length - 1;
-    int? result;
-
-    while (low <= high) {
-      final mid = low + ((high - low) >> 1);
-      final midTimestamp = data[mid].timestamp;
-
-      if (midTimestamp == timestamp) {
-        return mid;
-      }
-      if (midTimestamp < timestamp) {
-        result = mid;
-        low = mid + 1;
-      } else {
-        high = mid - 1;
-      }
-    }
-
-    return result;
+    return KlineTimestampUtils.findNearestIndexAtOrBeforeTimestamp(data, timestamp);
   }
 
   int? resolveAnchorIndex(CandleAnchor anchor) {
@@ -88,14 +67,11 @@ class ChartObjectRenderContext {
     required int? timestamp,
     required int fallbackIndex,
   }) {
-    if (timestamp != null) {
-      final int? resolved = findKlineIndexByTimestamp(timestamp);
-      if (resolved != null) return resolved;
-    }
-    if (fallbackIndex < 0 || fallbackIndex >= data.length) {
-      return null;
-    }
-    return fallbackIndex;
+    return KlineTimestampUtils.resolveIndexByTimestampOrFallback(
+      data,
+      timestamp: timestamp,
+      fallbackIndex: fallbackIndex,
+    );
   }
 
   Color parseHexColor(String colorString, Color fallback) {
@@ -327,11 +303,18 @@ class WavePointObjectRenderer extends ChartObjectRenderer<WavePointObject> {
 
   @override
   void render(ChartObjectRenderContext context, WavePointObject object) {
-    if (object.index < context.startIndex || object.index >= context.endIndex) {
+    final int? candleIndex = context.resolveIndexByTimestampOrFallback(
+      timestamp: object.timestamp,
+      fallbackIndex: object.index,
+    );
+    if (candleIndex == null) {
+      return;
+    }
+    if (candleIndex < context.startIndex || candleIndex >= context.endIndex) {
       return;
     }
 
-    final x = context.candleXByIndex(object.index);
+    final x = context.candleXByIndex(candleIndex);
     if (x < 0) return;
     final y = context.priceToY(object.price);
 
@@ -482,11 +465,18 @@ class FilteredWavePointObjectRenderer
 
   @override
   void render(ChartObjectRenderContext context, FilteredWavePointObject object) {
-    if (object.index < context.startIndex || object.index > context.endIndex) {
+    final int? candleIndex = context.resolveIndexByTimestampOrFallback(
+      timestamp: object.timestamp,
+      fallbackIndex: object.index,
+    );
+    if (candleIndex == null) {
+      return;
+    }
+    if (candleIndex < context.startIndex || candleIndex > context.endIndex) {
       return;
     }
 
-    final x = context.candleXByIndex(object.index);
+    final x = context.candleXByIndex(candleIndex);
     if (x < 0) return;
     final y = context.priceToY(object.price);
 

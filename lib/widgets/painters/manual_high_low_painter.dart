@@ -28,7 +28,7 @@ class ManualHighLowPainter {
     final double startX = candleDrawingWidth - (visibleCandles * totalCandleWidth);
 
     for (final point in manualHighLowPoints) {
-      final int? candleIndex = KlineTimestampUtils.findKlineIndexByTimestamp(
+      final int? candleIndex = KlineTimestampUtils.findNearestIndexByTimestamp(
         data,
         point.timestamp,
       );

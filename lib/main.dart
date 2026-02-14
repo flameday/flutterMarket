@@ -12,6 +12,7 @@ import 'services/csv_file_watcher.dart';
 import 'services/settings_service.dart';
 import 'services/log_service.dart';
 import 'services/multi_pair_download_service.dart';
+import 'utils/kline_timestamp_utils.dart';
 import 'widgets/candlestick_chart.dart';
 import 'widgets/chart_view_controller.dart';
 import 'widgets/components/background_color_picker_dialog.dart';
@@ -1549,16 +1550,8 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
       CandlestickChart.navigateToTimestamp(targetTimestamp);
       
       // 查找最接近的时间点用于显示结果
-      int closestIndex = 0;
-      int minDifference = (targetTimestamp - _priceData[0].timestamp).abs();
-      
-      for (int i = 1; i < _priceData.length; i++) {
-        final difference = (targetTimestamp - _priceData[i].timestamp).abs();
-        if (difference < minDifference) {
-          minDifference = difference;
-          closestIndex = i;
-        }
-      }
+      final int closestIndex =
+          KlineTimestampUtils.findNearestIndexByTimestamp(_priceData, targetTimestamp) ?? 0;
       
       // 显示导航结果
       final actualTime = DateTime.fromMillisecondsSinceEpoch(_priceData[closestIndex].timestamp, isUtc: true);

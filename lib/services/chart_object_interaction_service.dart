@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/chart_object.dart';
 import '../models/price_data.dart';
+import '../utils/kline_timestamp_utils.dart';
 
 enum ObjectDragTarget {
   start,
@@ -130,34 +131,12 @@ class ChartObjectInteractionService {
     return null;
   }
 
-  static int? _findKlineIndexByTimestamp(List<PriceData> data, int timestamp) {
-    if (data.isEmpty) return null;
-
-    int low = 0;
-    int high = data.length - 1;
-    int? result;
-
-    while (low <= high) {
-      final mid = low + ((high - low) >> 1);
-      final midTimestamp = data[mid].timestamp;
-
-      if (midTimestamp == timestamp) {
-        return mid;
-      }
-      if (midTimestamp < timestamp) {
-        result = mid;
-        low = mid + 1;
-      } else {
-        high = mid - 1;
-      }
-    }
-
-    return result;
-  }
-
   static int? _resolveAnchorIndex(List<PriceData> data, CandleAnchor anchor) {
     if (anchor.timestamp != null) {
-      final resolved = _findKlineIndexByTimestamp(data, anchor.timestamp!);
+      final resolved = KlineTimestampUtils.findNearestIndexAtOrBeforeTimestamp(
+        data,
+        anchor.timestamp!,
+      );
       if (resolved != null) return resolved;
     }
     if (anchor.index < 0 || anchor.index >= data.length) return null;
@@ -169,12 +148,11 @@ class ChartObjectInteractionService {
     required int? timestamp,
     required int fallbackIndex,
   }) {
-    if (timestamp != null) {
-      final resolved = _findKlineIndexByTimestamp(data, timestamp);
-      if (resolved != null) return resolved;
-    }
-    if (fallbackIndex < 0 || fallbackIndex >= data.length) return null;
-    return fallbackIndex;
+    return KlineTimestampUtils.resolveIndexByTimestampOrFallback(
+      data,
+      timestamp: timestamp,
+      fallbackIndex: fallbackIndex,
+    );
   }
 
   static Offset _anchorToOffset({

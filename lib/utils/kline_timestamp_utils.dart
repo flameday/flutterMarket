@@ -4,6 +4,87 @@ import '../models/timeframe.dart';
 /// K线时间戳工具类
 /// 用于在不同时间周期之间进行时间戳转换和K线定位
 class KlineTimestampUtils {
+
+  /// 获取指定索引对应的时间戳
+  static int? timestampAtIndex(List<PriceData> data, int index) {
+    if (index < 0 || index >= data.length) return null;
+    return data[index].timestamp;
+  }
+
+  /// 查找时间戳对应或之后的第一个索引（lower_bound）
+  static int? findNearestIndexAtOrAfterTimestamp(List<PriceData> data, int timestamp) {
+    if (data.isEmpty) return null;
+
+    int left = 0;
+    int right = data.length;
+
+    while (left < right) {
+      final int mid = left + ((right - left) >> 1);
+      if (data[mid].timestamp < timestamp) {
+        left = mid + 1;
+      } else {
+        right = mid;
+      }
+    }
+
+    if (left >= data.length) {
+      return data.length - 1;
+    }
+    return left;
+  }
+
+  /// 查找时间戳对应或之前的最后一个索引（upper_bound - 1）
+  static int? findNearestIndexAtOrBeforeTimestamp(List<PriceData> data, int timestamp) {
+    if (data.isEmpty) return null;
+
+    int low = 0;
+    int high = data.length - 1;
+    int? result;
+
+    while (low <= high) {
+      final int mid = low + ((high - low) >> 1);
+      final int midTimestamp = data[mid].timestamp;
+
+      if (midTimestamp == timestamp) {
+        return mid;
+      }
+      if (midTimestamp < timestamp) {
+        result = mid;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+
+    return result ?? 0;
+  }
+
+  /// 查找与目标时间戳最接近的索引
+  static int? findNearestIndexByTimestamp(List<PriceData> data, int timestamp) {
+    if (data.isEmpty) return null;
+
+    final int after = findNearestIndexAtOrAfterTimestamp(data, timestamp)!;
+    final int before = (after - 1).clamp(0, data.length - 1);
+
+    final int beforeDiff = (timestamp - data[before].timestamp).abs();
+    final int afterDiff = (timestamp - data[after].timestamp).abs();
+
+    return beforeDiff <= afterDiff ? before : after;
+  }
+
+  /// 时间戳优先，失败后回退到索引
+  static int? resolveIndexByTimestampOrFallback(
+    List<PriceData> data, {
+    required int? timestamp,
+    required int fallbackIndex,
+  }) {
+    if (timestamp != null) {
+      final int? resolved = findNearestIndexAtOrBeforeTimestamp(data, timestamp);
+      if (resolved != null) return resolved;
+    }
+    if (fallbackIndex < 0 || fallbackIndex >= data.length) return null;
+    return fallbackIndex;
+  }
   
   /// 根据时间戳在K线数据中查找对应的索引
   /// 如果找不到精确匹配，返回最接近的索引

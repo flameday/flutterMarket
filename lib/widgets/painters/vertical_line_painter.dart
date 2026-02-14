@@ -26,7 +26,7 @@ class VerticalLinePainter {
     final double startX = candleDrawingWidth - (visibleCandles * totalCandleWidth);
 
     for (final verticalLine in verticalLines) {
-      final int? candleIndex = KlineTimestampUtils.findKlineIndexByTimestamp(
+      final int? candleIndex = KlineTimestampUtils.findNearestIndexByTimestamp(
         data,
         verticalLine.timestamp,
       );

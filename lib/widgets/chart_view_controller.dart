@@ -17,6 +17,7 @@ import '../controllers/manual_high_low_controller.dart';
 import '../controllers/bollinger_bands_controller.dart';
 import '../services/trend_filtering_service.dart';
 import '../services/bollinger_bands_filtering_service.dart';
+import '../utils/kline_timestamp_utils.dart';
 
 /// Mixin制約を満たすための抽象基底クラス
 abstract class _ChartControllerBase implements 
@@ -262,7 +263,7 @@ class ChartViewController extends _ChartControllerBase
     // 時間戳アンカー方式：刷新時は「現在表示起点の時間」を優先して維持
     int newStartIndex;
     if (anchorStartTimestamp != null) {
-      newStartIndex = _findNearestIndexAtOrAfterTimestamp(anchorStartTimestamp);
+      newStartIndex = findNearestIndexAtOrAfterTimestamp(anchorStartTimestamp);
     } else {
       newStartIndex = oldStartIndex.clamp(0, data.length - 1);
     }
@@ -289,25 +290,16 @@ class ChartViewController extends _ChartControllerBase
     recordCurrentViewState();
   }
 
-  int _findNearestIndexAtOrAfterTimestamp(int timestamp) {
-    if (data.isEmpty) return 0;
+  int? timestampAtIndex(int index) {
+    return KlineTimestampUtils.timestampAtIndex(data, index);
+  }
 
-    int left = 0;
-    int right = data.length;
+  int findNearestIndexAtOrAfterTimestamp(int timestamp) {
+    return KlineTimestampUtils.findNearestIndexAtOrAfterTimestamp(data, timestamp) ?? 0;
+  }
 
-    while (left < right) {
-      final int mid = left + ((right - left) >> 1);
-      if (data[mid].timestamp < timestamp) {
-        left = mid + 1;
-      } else {
-        right = mid;
-      }
-    }
-
-    if (left >= data.length) {
-      return data.length - 1;
-    }
-    return left;
+  int findNearestIndexByTimestamp(int timestamp) {
+    return KlineTimestampUtils.findNearestIndexByTimestamp(data, timestamp) ?? 0;
   }
 
   bool _didDataSnapshotChange(List<PriceData> previous, List<PriceData> next) {
@@ -810,18 +802,7 @@ class ChartViewController extends _ChartControllerBase
       return;
     }
 
-    // 查找最接近的时间戳
-    int closestIndex = 0;
-    int minDifference = (timestamp - data[0].timestamp).abs();
-    
-    for (int i = 1; i < data.length; i++) {
-      final difference = (timestamp - data[i].timestamp).abs();
-      if (difference < minDifference) {
-        minDifference = difference;
-        closestIndex = i;
-      }
-    }
-    
+    final int closestIndex = findNearestIndexByTimestamp(timestamp);
     navigateToIndex(closestIndex);
   }
 

@@ -1663,8 +1663,7 @@ class _CandlestickChartState extends State<CandlestickChart> {
   int? _indexToTimestamp(int index) {
     if (widget.data.isEmpty) return null;
     final int safeIndex = _clampDataIndex(index);
-    if (safeIndex < 0 || safeIndex >= widget.data.length) return null;
-    return widget.data[safeIndex].timestamp;
+    return _controller.timestampAtIndex(safeIndex);
   }
 
   void _updateDraggingObject(Offset localPosition, double chartWidth, double chartHeight) {

@@ -9,15 +9,22 @@ class ChartObjectLayer2IndicatorBuilder {
     required ChartViewController controller,
     required bool includeTrendFiltering,
   }) {
+    int? timestampFromIndex(dynamic rawIndex) {
+      if (rawIndex is! int) return null;
+      return controller.timestampAtIndex(rawIndex);
+    }
+
     final mergedWavePoints = controller.getMergedWavePoints();
     if (controller.isWavePointsVisible && mergedWavePoints.isNotEmpty) {
       for (int i = 0; i < mergedWavePoints.length; i++) {
         final point = mergedWavePoints[i];
         final type = point['type'] as String;
+        final int pointIndex = point['index'] as int;
         objects.add(
           WavePointObject(
             id: 'wave-point-$i-${point['index']}',
-            index: point['index'] as int,
+            index: pointIndex,
+            timestamp: timestampFromIndex(pointIndex),
             price: (point['value'] as num).toDouble(),
             isHigh: type == 'high',
             layer: ChartObjectLayer.aboveIndicators,
@@ -34,10 +41,14 @@ class ChartObjectLayer2IndicatorBuilder {
           id: 'wave-polyline-main',
           points: mergedWavePoints
               .map(
-                (point) => CandleAnchor(
-                  index: point['index'] as int,
-                  price: (point['value'] as num).toDouble(),
-                ),
+                (point) {
+                  final int pointIndex = point['index'] as int;
+                  return CandleAnchor(
+                    index: pointIndex,
+                    price: (point['value'] as num).toDouble(),
+                    timestamp: timestampFromIndex(pointIndex),
+                  );
+                },
               )
               .toList(),
           color: '#FFA500',
@@ -67,10 +78,12 @@ class ChartObjectLayer2IndicatorBuilder {
     for (int i = 0; i < filtered.originalPoints.length; i++) {
       final point = filtered.originalPoints[i];
       final type = point['type'] as String;
+      final int pointIndex = point['index'] as int;
       objects.add(
         FilteredWavePointObject(
           id: 'filtered-original-$i-${point['index']}',
-          index: point['index'] as int,
+          index: pointIndex,
+          timestamp: timestampFromIndex(pointIndex),
           price: (point['value'] as num).toDouble(),
           pointKind: type == 'high' ? 'original_high' : 'original_low',
           layer: ChartObjectLayer.aboveIndicators,
@@ -80,10 +93,12 @@ class ChartObjectLayer2IndicatorBuilder {
 
     for (int i = 0; i < filtered.filteredHighPoints.length; i++) {
       final point = filtered.filteredHighPoints[i];
+      final int pointIndex = point['index'] as int;
       objects.add(
         FilteredWavePointObject(
           id: 'filtered-high-$i-${point['index']}',
-          index: point['index'] as int,
+          index: pointIndex,
+          timestamp: timestampFromIndex(pointIndex),
           price: (point['value'] as num).toDouble(),
           pointKind: 'filtered_high',
           layer: ChartObjectLayer.aboveIndicators,
@@ -93,10 +108,12 @@ class ChartObjectLayer2IndicatorBuilder {
 
     for (int i = 0; i < filtered.filteredLowPoints.length; i++) {
       final point = filtered.filteredLowPoints[i];
+      final int pointIndex = point['index'] as int;
       objects.add(
         FilteredWavePointObject(
           id: 'filtered-low-$i-${point['index']}',
-          index: point['index'] as int,
+          index: pointIndex,
+          timestamp: timestampFromIndex(pointIndex),
           price: (point['value'] as num).toDouble(),
           pointKind: 'filtered_low',
           layer: ChartObjectLayer.aboveIndicators,
@@ -111,8 +128,16 @@ class ChartObjectLayer2IndicatorBuilder {
       objects.add(
         TrendAnalysisLineObject(
           id: 'analysis-trend-$i-${line.startIndex}-${line.endIndex}',
-          start: CandleAnchor(index: line.startIndex, price: line.startValue),
-          end: CandleAnchor(index: line.endIndex, price: line.endValue),
+          start: CandleAnchor(
+            index: line.startIndex,
+            price: line.startValue,
+            timestamp: timestampFromIndex(line.startIndex),
+          ),
+          end: CandleAnchor(
+            index: line.endIndex,
+            price: line.endValue,
+            timestamp: timestampFromIndex(line.endIndex),
+          ),
           color: style.$1,
           width: style.$2,
           direction: line.direction,
@@ -128,10 +153,14 @@ class ChartObjectLayer2IndicatorBuilder {
           id: 'analysis-smooth-trend',
           points: smoothPoints
               .map(
-                (point) => CandleAnchor(
-                  index: point['index'] as int,
-                  price: (point['value'] as num).toDouble(),
-                ),
+                (point) {
+                  final int pointIndex = point['index'] as int;
+                  return CandleAnchor(
+                    index: pointIndex,
+                    price: (point['value'] as num).toDouble(),
+                    timestamp: timestampFromIndex(pointIndex),
+                  );
+                },
               )
               .toList(),
           color: '#FF9800',
@@ -147,10 +176,14 @@ class ChartObjectLayer2IndicatorBuilder {
           id: 'analysis-fitted-curve',
           points: filtered.fittedCurve
               .map(
-                (point) => CandleAnchor(
-                  index: point['index'] as int,
-                  price: (point['value'] as num).toDouble(),
-                ),
+                (point) {
+                  final int pointIndex = point['index'] as int;
+                  return CandleAnchor(
+                    index: pointIndex,
+                    price: (point['value'] as num).toDouble(),
+                    timestamp: timestampFromIndex(pointIndex),
+                  );
+                },
               )
               .toList(),
           color: '#2196F3',
