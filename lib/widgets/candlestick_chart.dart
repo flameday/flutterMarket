@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
@@ -183,7 +182,6 @@ class _CandlestickChartState extends State<CandlestickChart> {
       _selectedObjectId != null && _selectedObjectType != null;
 
   List<TrendLineObject> get _trendLines => _layer3DrawingManager.trendLines;
-  List<FreePolylineObject> get _polylineObjects => _layer3DrawingManager.polylineObjects;
 
   void _clearObjectSelection() {
     _selectedObjectId = null;
@@ -1578,19 +1576,17 @@ class _CandlestickChartState extends State<CandlestickChart> {
   }
 
   void _addDrawingObject(ChartObject object) {
+    _layer3DrawingManager.addDrawingObject(object);
     if (object is TrendLineObject) {
-      _layer3DrawingManager.addDrawingObject(object);
       _selectedObjectId = object.id;
       _selectedObjectType = TrendLineObject;
-      return;
     }
-    _layer3DrawingManager.addDrawingObject(object);
   }
 
   void _finishPolylineDrawing() {
     if (_pendingPolylinePoints.length < 2) return;
     setState(() {
-      _polylineObjects.add(
+      _layer3DrawingManager.addDrawingObject(
         FreePolylineObject(
           id: 'polyline-${DateTime.now().microsecondsSinceEpoch}',
           points: List<CandleAnchor>.from(_pendingPolylinePoints),
@@ -1655,27 +1651,6 @@ class _CandlestickChartState extends State<CandlestickChart> {
       chartHeight: chartHeight,
       minPrice: _getMinPrice(),
       maxPrice: _getMaxPrice(),
-    );
-  }
-
-  TrendLineObject _copyTrendLine(
-    TrendLineObject line, {
-    int? startIndex,
-    double? startPrice,
-    int? endIndex,
-    double? endPrice,
-  }) {
-    return TrendLineObject(
-      id: line.id,
-      startIndex: startIndex ?? line.startIndex,
-      startPrice: startPrice ?? line.startPrice,
-      endIndex: endIndex ?? line.endIndex,
-      endPrice: endPrice ?? line.endPrice,
-      color: line.color,
-      width: line.width,
-      selected: line.selected,
-      layer: line.layer,
-      visible: line.visible,
     );
   }
 
@@ -1827,47 +1802,30 @@ class _CandlestickChartState extends State<CandlestickChart> {
     );
   }
 
-  void _updateSelectedTrendLine(TrendLineObject Function(TrendLineObject line) updater) {
-    final String? id = _selectedTrendLineId;
-    if (id == null) return;
-    setState(() {
-      _layer3DrawingManager.updateTrendLineById(id, updater);
-    });
-  }
-
   bool _removeObjectByTypeAndId(Type objectType, String id) {
     return _layer3DrawingManager.removeByTypeAndId(objectType, id);
   }
 
   void _adjustSelectedTrendLineLength(double factor) {
-    _updateSelectedTrendLine((line) {
-      final double dx = (line.endIndex - line.startIndex).toDouble();
-      final double dy = line.endPrice - line.startPrice;
-      final double newEndIndex = line.startIndex + dx * factor;
-      final double newEndPrice = line.startPrice + dy * factor;
-      return _copyTrendLine(
-        line,
-        endIndex: _clampDataIndex(newEndIndex.round()),
-        endPrice: newEndPrice,
+    final String? id = _selectedTrendLineId;
+    if (id == null) return;
+    setState(() {
+      _layer3DrawingManager.adjustTrendLineLengthById(
+        id: id,
+        factor: factor,
+        clampDataIndex: _clampDataIndex,
       );
     });
   }
 
   void _adjustSelectedTrendLineAngle(double deltaDegrees) {
-    _updateSelectedTrendLine((line) {
-      final double dx = (line.endIndex - line.startIndex).toDouble();
-      final double dy = line.endPrice - line.startPrice;
-      final double length = math.sqrt(dx * dx + dy * dy);
-      if (length < 0.0000001) return line;
-
-      final double angle = math.atan2(dy, dx) + (deltaDegrees * math.pi / 180.0);
-      final double newDx = math.cos(angle) * length;
-      final double newDy = math.sin(angle) * length;
-
-      return _copyTrendLine(
-        line,
-        endIndex: _clampDataIndex((line.startIndex + newDx).round()),
-        endPrice: line.startPrice + newDy,
+    final String? id = _selectedTrendLineId;
+    if (id == null) return;
+    setState(() {
+      _layer3DrawingManager.adjustTrendLineAngleById(
+        id: id,
+        deltaDegrees: deltaDegrees,
+        clampDataIndex: _clampDataIndex,
       );
     });
   }

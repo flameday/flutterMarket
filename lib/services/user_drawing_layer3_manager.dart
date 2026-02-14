@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../models/chart_object.dart';
 import 'chart_object_interaction_service.dart';
 
@@ -49,6 +51,47 @@ class UserDrawingLayer3Manager {
     if (index < 0) return false;
     trendLines[index] = updater(trendLines[index]);
     return true;
+  }
+
+  bool adjustTrendLineLengthById({
+    required String id,
+    required double factor,
+    required int Function(int index) clampDataIndex,
+  }) {
+    return updateTrendLineById(id, (line) {
+      final double dx = (line.endIndex - line.startIndex).toDouble();
+      final double dy = line.endPrice - line.startPrice;
+      final double newEndIndex = line.startIndex + dx * factor;
+      final double newEndPrice = line.startPrice + dy * factor;
+      return _copyTrendLine(
+        line,
+        endIndex: clampDataIndex(newEndIndex.round()),
+        endPrice: newEndPrice,
+      );
+    });
+  }
+
+  bool adjustTrendLineAngleById({
+    required String id,
+    required double deltaDegrees,
+    required int Function(int index) clampDataIndex,
+  }) {
+    return updateTrendLineById(id, (line) {
+      final double dx = (line.endIndex - line.startIndex).toDouble();
+      final double dy = line.endPrice - line.startPrice;
+      final double length = math.sqrt(dx * dx + dy * dy);
+      if (length < 0.0000001) return line;
+
+      final double angle = math.atan2(dy, dx) + (deltaDegrees * math.pi / 180.0);
+      final double newDx = math.cos(angle) * length;
+      final double newDy = math.sin(angle) * length;
+
+      return _copyTrendLine(
+        line,
+        endIndex: clampDataIndex((line.startIndex + newDx).round()),
+        endPrice: line.startPrice + newDy,
+      );
+    });
   }
 
   bool removeByTypeAndId(Type objectType, String id) {
@@ -394,5 +437,26 @@ class UserDrawingLayer3Manager {
     final int before = objects.length;
     objects.removeWhere((object) => object.id == id);
     return objects.length != before;
+  }
+
+  TrendLineObject _copyTrendLine(
+    TrendLineObject line, {
+    int? startIndex,
+    double? startPrice,
+    int? endIndex,
+    double? endPrice,
+  }) {
+    return TrendLineObject(
+      id: line.id,
+      startIndex: startIndex ?? line.startIndex,
+      startPrice: startPrice ?? line.startPrice,
+      endIndex: endIndex ?? line.endIndex,
+      endPrice: endPrice ?? line.endPrice,
+      color: line.color,
+      width: line.width,
+      selected: line.selected,
+      layer: line.layer,
+      visible: line.visible,
+    );
   }
 }
