@@ -10,9 +10,7 @@ class AppSettings {
   final bool isWavePointsVisible;
   final bool isWavePointsLineVisible;
   final bool isOhlcVisible; // 右上O/H/L/C表示
-  final bool isFormattedWaveVisible;
   final bool isKlineVisible; // K線表示/非表示
-  final String selectedInterpolationMethod;
   final Map<int, bool> maVisibility;
   final Map<int, String> maColors; // MA色設定
   final Map<int, double> maAlphas; // MA透明度設定
@@ -42,9 +40,7 @@ class AppSettings {
     this.isWavePointsVisible = true,
     this.isWavePointsLineVisible = false,
     this.isOhlcVisible = true,
-    this.isFormattedWaveVisible = false,
     this.isKlineVisible = true, // デフォルトでK線を表示
-    this.selectedInterpolationMethod = 'chaikin',
     this.maVisibility = const {2: false, 3: false, 10: false, 13: false, 30: true, 60: false, 150: true, 300: false, 750: false},
     this.maColors = const {
       2: '0xFFFF0000', // 赤
@@ -90,9 +86,7 @@ class AppSettings {
       isWavePointsVisible: json['isWavePointsVisible'] ?? defaults.isWavePointsVisible,
       isWavePointsLineVisible: json['isWavePointsLineVisible'] ?? defaults.isWavePointsLineVisible,
       isOhlcVisible: json['isOhlcVisible'] ?? defaults.isOhlcVisible,
-      isFormattedWaveVisible: json['isFormattedWaveVisible'] ?? defaults.isFormattedWaveVisible,
       isKlineVisible: json['isKlineVisible'] ?? defaults.isKlineVisible,
-      selectedInterpolationMethod: json['selectedInterpolationMethod'] ?? defaults.selectedInterpolationMethod,
       maVisibility: _parseMaVisibility(json['maVisibility']) ?? defaults.maVisibility,
       maColors: _parseMaColors(json['maColors']) ?? defaults.maColors,
       maAlphas: _parseMaAlphas(json['maAlphas']) ?? defaults.maAlphas,
@@ -126,9 +120,7 @@ class AppSettings {
       'isWavePointsVisible': isWavePointsVisible,
       'isWavePointsLineVisible': isWavePointsLineVisible,
       'isOhlcVisible': isOhlcVisible,
-      'isFormattedWaveVisible': isFormattedWaveVisible,
       'isKlineVisible': isKlineVisible,
-      'selectedInterpolationMethod': selectedInterpolationMethod,
       'maVisibility': maVisibility.map((key, value) => MapEntry(key.toString(), value)),
       'maColors': maColors.map((key, value) => MapEntry(key.toString(), value)),
       'maAlphas': maAlphas.map((key, value) => MapEntry(key.toString(), value)),
@@ -161,9 +153,7 @@ class AppSettings {
     bool? isWavePointsVisible,
     bool? isWavePointsLineVisible,
     bool? isOhlcVisible,
-    bool? isFormattedWaveVisible,
     bool? isKlineVisible,
-    String? selectedInterpolationMethod,
     Map<int, bool>? maVisibility,
     Map<int, String>? maColors,
     Map<int, double>? maAlphas,
@@ -192,9 +182,7 @@ class AppSettings {
       isWavePointsVisible: isWavePointsVisible ?? this.isWavePointsVisible,
       isWavePointsLineVisible: isWavePointsLineVisible ?? this.isWavePointsLineVisible,
       isOhlcVisible: isOhlcVisible ?? this.isOhlcVisible,
-      isFormattedWaveVisible: isFormattedWaveVisible ?? this.isFormattedWaveVisible,
       isKlineVisible: isKlineVisible ?? this.isKlineVisible,
-      selectedInterpolationMethod: selectedInterpolationMethod ?? this.selectedInterpolationMethod,
       maVisibility: maVisibility ?? this.maVisibility,
       maColors: maColors ?? this.maColors,
       maAlphas: maAlphas ?? this.maAlphas,

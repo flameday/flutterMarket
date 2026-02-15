@@ -15,7 +15,6 @@ import '../controllers/chart_zoom_controller.dart';
 import '../controllers/wave_points_controller.dart';
 import '../controllers/manual_high_low_controller.dart';
 import '../services/trend_filtering_service.dart';
-import '../services/ma150_pivot_trend_strategy_service.dart';
 import '../utils/kline_timestamp_utils.dart';
 
 /// Mixin制約を満たすための抽象基底クラス
@@ -694,11 +693,12 @@ class ChartViewController extends _ChartControllerBase
       LogService.instance.info('ChartViewController', '元の高低点: ${wavePoints!.mergedPoints.length}個');
       LogService.instance.info('ChartViewController', '閾値: ${(_trendFilteringThreshold * 100).toStringAsFixed(2)}%');
       
-      _filteredWavePoints = MA150PivotTrendStrategyService.instance.analyze(
-        priceDataList: data,
-        ma150Series: ma150Series,
+      _filteredWavePoints = TrendFilteringService.instance.filterByMA150(
+        wavePoints!,
+        data,
+        ma150Series,
         nearThreshold: _trendFilteringNearThreshold,
-        pivotLookback: 4,
+        farThreshold: _trendFilteringFarThreshold,
         minGapBars: _trendFilteringMinGapBars,
       );
 
