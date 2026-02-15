@@ -384,35 +384,63 @@ class ManualHighLowObjectRenderer extends ChartObjectRenderer<ManualHighLowObjec
     if (x < 0 || x > context.size.width) {
       return;
     }
-    final y = context.priceToY(object.price);
+    double y = context.priceToY(object.price);
+    y += object.isHigh ? -object.markerOffset : object.markerOffset;
     if (y < 0 || y > context.size.height) {
       return;
     }
 
+    final Color markerColor = object.markerColor != null
+        ? context.parseHexColor(object.markerColor!, object.isHigh ? Colors.orange : Colors.blue)
+        : (object.isHigh ? Colors.orange : Colors.blue);
+
     final pointPaint = Paint()
-      ..color = object.isHigh ? Colors.orange : Colors.blue
+      ..color = markerColor
       ..style = PaintingStyle.fill;
 
     final borderPaint = Paint()
-      ..color = object.isHigh ? Colors.red : Colors.green
+      ..color = Colors.white
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
 
-    final path = Path();
-    const size = 8.0;
-    if (object.isHigh) {
-      path.moveTo(x, y - size);
-      path.lineTo(x - size, y + size);
-      path.lineTo(x + size, y + size);
-    } else {
-      path.moveTo(x, y + size);
-      path.lineTo(x - size, y - size);
-      path.lineTo(x + size, y - size);
+    final double size = object.markerSize;
+    switch (object.markerShape) {
+      case 'circle':
+        context.canvas.drawCircle(Offset(x, y), size, pointPaint);
+        context.canvas.drawCircle(Offset(x, y), size, borderPaint);
+        return;
+      case 'square':
+        final rect = Rect.fromCenter(center: Offset(x, y), width: size * 2, height: size * 2);
+        context.canvas.drawRect(rect, pointPaint);
+        context.canvas.drawRect(rect, borderPaint);
+        return;
+      case 'diamond':
+        final diamondPath = Path()
+          ..moveTo(x, y - size)
+          ..lineTo(x - size, y)
+          ..lineTo(x, y + size)
+          ..lineTo(x + size, y)
+          ..close();
+        context.canvas.drawPath(diamondPath, pointPaint);
+        context.canvas.drawPath(diamondPath, borderPaint);
+        return;
+      case 'triangle':
+      default:
+        final path = Path();
+        if (object.isHigh) {
+          path.moveTo(x, y - size);
+          path.lineTo(x - size, y + size);
+          path.lineTo(x + size, y + size);
+        } else {
+          path.moveTo(x, y + size);
+          path.lineTo(x - size, y - size);
+          path.lineTo(x + size, y - size);
+        }
+        path.close();
+        context.canvas.drawPath(path, pointPaint);
+        context.canvas.drawPath(path, borderPaint);
+        return;
     }
-    path.close();
-
-    context.canvas.drawPath(path, pointPaint);
-    context.canvas.drawPath(path, borderPaint);
   }
 }
 

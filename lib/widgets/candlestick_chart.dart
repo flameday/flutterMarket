@@ -50,6 +50,11 @@ class CandlestickChart extends StatefulWidget {
   final bool? isAutoUpdateEnabled; // 自动更新是否启用
   final int? autoUpdateIntervalMinutes; // 自动更新间隔（分钟）
   final int? klineDataLimit; // K线数据限制
+  final double? highLowMarkerSize;
+  final String? highLowMarkerShape;
+  final String? highMarkerColor;
+  final String? lowMarkerColor;
+  final double? highLowMarkerOffset;
   final Timeframe? selectedTimeframe; // 选择的时间周期
   final TradingPair? selectedTradingPair; // 选择的交易对
   final Future<void> Function({bool showMessages})? onDownloadRequested; // データダウンロード要求コールバック
@@ -77,6 +82,11 @@ class CandlestickChart extends StatefulWidget {
     this.isAutoUpdateEnabled,
     this.autoUpdateIntervalMinutes,
     this.klineDataLimit,
+    this.highLowMarkerSize,
+    this.highLowMarkerShape,
+    this.highMarkerColor,
+    this.lowMarkerColor,
+    this.highLowMarkerOffset,
     this.selectedTimeframe,
     this.selectedTradingPair,
     this.onDownloadRequested,
@@ -232,6 +242,14 @@ class _CandlestickChartState extends State<CandlestickChart> {
     if (widget.isWavePointsVisible != null) {
       _controller.isWavePointsVisible = widget.isWavePointsVisible!;
     }
+
+    _controller.setHighLowMarkerStyle(
+      size: widget.highLowMarkerSize ?? _controller.highLowMarkerSize,
+      shape: widget.highLowMarkerShape ?? _controller.highLowMarkerShape,
+      highColor: widget.highMarkerColor ?? _controller.highMarkerColor,
+      lowColor: widget.lowMarkerColor ?? _controller.lowMarkerColor,
+      offset: widget.highLowMarkerOffset ?? _controller.highLowMarkerOffset,
+    );
     
     // トレンドフィルタリング設定初期化
     if (widget.isTrendFilteringEnabled != null) {
@@ -317,6 +335,22 @@ class _CandlestickChartState extends State<CandlestickChart> {
     }
     if (widget.isWavePointsLineVisible != oldWidget.isWavePointsLineVisible && widget.isWavePointsLineVisible != null) {
       _controller.isWavePointsLineVisible = widget.isWavePointsLineVisible!;
+    }
+
+    final bool markerStyleChanged =
+        widget.highLowMarkerSize != oldWidget.highLowMarkerSize ||
+        widget.highLowMarkerShape != oldWidget.highLowMarkerShape ||
+        widget.highMarkerColor != oldWidget.highMarkerColor ||
+        widget.lowMarkerColor != oldWidget.lowMarkerColor ||
+        widget.highLowMarkerOffset != oldWidget.highLowMarkerOffset;
+    if (markerStyleChanged) {
+      _controller.setHighLowMarkerStyle(
+        size: widget.highLowMarkerSize ?? _controller.highLowMarkerSize,
+        shape: widget.highLowMarkerShape ?? _controller.highLowMarkerShape,
+        highColor: widget.highMarkerColor ?? _controller.highMarkerColor,
+        lowColor: widget.lowMarkerColor ?? _controller.lowMarkerColor,
+        offset: widget.highLowMarkerOffset ?? _controller.highLowMarkerOffset,
+      );
     }
     
     

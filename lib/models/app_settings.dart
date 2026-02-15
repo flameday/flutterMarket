@@ -30,6 +30,11 @@ class AppSettings {
   final String backgroundColor; // 背景色設定
   final bool isMaTrendBackgroundEnabled; // 基于移动平均线的趋势背景设置
   final bool isMousePositionZoomEnabled; // 以鼠标位置为缩放原点
+  final double highLowMarkerSize;
+  final String highLowMarkerShape;
+  final String highMarkerColor;
+  final String lowMarkerColor;
+  final double highLowMarkerOffset;
   final DateTime lastUpdated;
 
   const AppSettings({
@@ -72,6 +77,11 @@ class AppSettings {
     this.backgroundColor = '0xFF1E1E1E', // デフォルトは暗い背景
     this.isMaTrendBackgroundEnabled = false, // 默认关闭移动平均线趋势背景
     this.isMousePositionZoomEnabled = false, // 默认以右侧为缩放原点
+    this.highLowMarkerSize = 8.0,
+    this.highLowMarkerShape = 'triangle',
+    this.highMarkerColor = '#FF9800',
+    this.lowMarkerColor = '#2196F3',
+    this.highLowMarkerOffset = 0.0,
     required this.lastUpdated,
   });
 
@@ -106,6 +116,11 @@ class AppSettings {
       backgroundColor: json['backgroundColor'] ?? defaults.backgroundColor,
       isMaTrendBackgroundEnabled: json['isMaTrendBackgroundEnabled'] ?? defaults.isMaTrendBackgroundEnabled,
       isMousePositionZoomEnabled: json['isMousePositionZoomEnabled'] ?? defaults.isMousePositionZoomEnabled,
+      highLowMarkerSize: (json['highLowMarkerSize'] ?? defaults.highLowMarkerSize).toDouble(),
+      highLowMarkerShape: json['highLowMarkerShape'] ?? defaults.highLowMarkerShape,
+      highMarkerColor: json['highMarkerColor'] ?? defaults.highMarkerColor,
+      lowMarkerColor: json['lowMarkerColor'] ?? defaults.lowMarkerColor,
+      highLowMarkerOffset: (json['highLowMarkerOffset'] ?? defaults.highLowMarkerOffset).toDouble(),
       lastUpdated: DateTime.parse(json['lastUpdated'] ?? DateTime.now().toIso8601String()),
     );
   }
@@ -140,6 +155,11 @@ class AppSettings {
       'backgroundColor': backgroundColor,
       'isMaTrendBackgroundEnabled': isMaTrendBackgroundEnabled,
       'isMousePositionZoomEnabled': isMousePositionZoomEnabled,
+      'highLowMarkerSize': highLowMarkerSize,
+      'highLowMarkerShape': highLowMarkerShape,
+      'highMarkerColor': highMarkerColor,
+      'lowMarkerColor': lowMarkerColor,
+      'highLowMarkerOffset': highLowMarkerOffset,
       'lastUpdated': lastUpdated.toIso8601String(),
     };
   }
@@ -173,6 +193,11 @@ class AppSettings {
     String? backgroundColor,
     bool? isMaTrendBackgroundEnabled,
     bool? isMousePositionZoomEnabled,
+    double? highLowMarkerSize,
+    String? highLowMarkerShape,
+    String? highMarkerColor,
+    String? lowMarkerColor,
+    double? highLowMarkerOffset,
   }) {
     return AppSettings(
       selectedTradingPair: selectedTradingPair ?? this.selectedTradingPair,
@@ -202,6 +227,11 @@ class AppSettings {
       backgroundColor: backgroundColor ?? this.backgroundColor,
       isMaTrendBackgroundEnabled: isMaTrendBackgroundEnabled ?? this.isMaTrendBackgroundEnabled,
       isMousePositionZoomEnabled: isMousePositionZoomEnabled ?? this.isMousePositionZoomEnabled,
+      highLowMarkerSize: highLowMarkerSize ?? this.highLowMarkerSize,
+      highLowMarkerShape: highLowMarkerShape ?? this.highLowMarkerShape,
+      highMarkerColor: highMarkerColor ?? this.highMarkerColor,
+      lowMarkerColor: lowMarkerColor ?? this.lowMarkerColor,
+      highLowMarkerOffset: highLowMarkerOffset ?? this.highLowMarkerOffset,
       lastUpdated: DateTime.now(),
     );
   }

@@ -65,6 +65,30 @@ class ChartObjectLayer2IndicatorBuilder {
           timestamp: point.timestamp,
           price: point.price,
           isHigh: point.isHigh,
+          markerColor: point.isHigh
+              ? controller.highMarkerColor
+              : controller.lowMarkerColor,
+          markerShape: controller.highLowMarkerShape,
+          markerSize: controller.highLowMarkerSize,
+          markerOffset: controller.highLowMarkerOffset,
+          layer: ChartObjectLayer.aboveIndicators,
+        ),
+      );
+    }
+
+    for (final point in controller.getStrategyHighLowPoints()) {
+      objects.add(
+        ManualHighLowObject(
+          id: point.id,
+          timestamp: point.timestamp,
+          price: point.price,
+          isHigh: point.isHigh,
+          markerColor: point.isHigh
+              ? controller.highMarkerColor
+              : controller.lowMarkerColor,
+          markerShape: controller.highLowMarkerShape,
+          markerSize: controller.highLowMarkerSize,
+          markerOffset: controller.highLowMarkerOffset,
           layer: ChartObjectLayer.aboveIndicators,
         ),
       );

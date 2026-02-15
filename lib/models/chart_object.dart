@@ -142,6 +142,10 @@ class ManualHighLowObject extends ChartObject {
     required this.timestamp,
     required this.price,
     required this.isHigh,
+    this.markerColor,
+    this.markerShape = 'triangle',
+    this.markerSize = 8.0,
+    this.markerOffset = 0.0,
     super.layer = ChartObjectLayer.aboveIndicators,
     super.visible = true,
   });
@@ -149,6 +153,10 @@ class ManualHighLowObject extends ChartObject {
   final int timestamp;
   final double price;
   final bool isHigh;
+  final String? markerColor;
+  final String markerShape;
+  final double markerSize;
+  final double markerOffset;
 }
 
 class FibonacciRetracementObject extends ChartObject {

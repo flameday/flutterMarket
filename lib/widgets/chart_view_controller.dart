@@ -15,7 +15,9 @@ import '../controllers/chart_zoom_controller.dart';
 import '../controllers/wave_points_controller.dart';
 import '../controllers/manual_high_low_controller.dart';
 import '../services/trend_filtering_service.dart';
+import '../services/kline_nearby_high_low_strategy_service.dart';
 import '../utils/kline_timestamp_utils.dart';
+import '../models/manual_high_low_point.dart';
 
 /// Mixin制約を満たすための抽象基底クラス
 abstract class _ChartControllerBase implements 
@@ -106,6 +108,7 @@ class ChartViewController extends _ChartControllerBase
   int? _recordedEndIndex;
   
   bool _isLoadingData = false;
+  List<ManualHighLowPoint> _strategyHighLowPoints = [];
   
   // UI更新回调函数
   Function()? _onUIUpdate;
@@ -126,16 +129,58 @@ class ChartViewController extends _ChartControllerBase
   FilteredWavePoints? _filteredWavePoints;
 
   int get dataLength => data.length;
+  List<ManualHighLowPoint> get strategyHighLowPoints => _strategyHighLowPoints;
   
   // 当前时间周期
   String _currentTimeframe = '5m'; // 默认5分钟
+  double _highLowMarkerSize = 8.0;
+  String _highLowMarkerShape = 'triangle';
+  String _highMarkerColor = '#FF9800';
+  String _lowMarkerColor = '#2196F3';
+  double _highLowMarkerOffset = 0.0;
+
+  // 旧版图表页面互換用プロパティ
+  bool isFormattedWaveVisible = false;
+  String selectedInterpolationMethod = 'linear';
   
   @override
   String get currentTimeframe => _currentTimeframe;
+  double get highLowMarkerSize => _highLowMarkerSize;
+  String get highLowMarkerShape => _highLowMarkerShape;
+  String get highMarkerColor => _highMarkerColor;
+  String get lowMarkerColor => _lowMarkerColor;
+  double get highLowMarkerOffset => _highLowMarkerOffset;
   
   void setTimeframe(String timeframe) {
     _currentTimeframe = timeframe;
+    _rebuildStrategyHighLowPoints();
     Log.info('ChartViewController', '时间周期设置为: $timeframe');
+  }
+
+  void setHighLowMarkerStyle({
+    required double size,
+    required String shape,
+    required String highColor,
+    required String lowColor,
+    required double offset,
+  }) {
+    _highLowMarkerSize = size;
+    _highLowMarkerShape = shape;
+    _highMarkerColor = highColor;
+    _lowMarkerColor = lowColor;
+    _highLowMarkerOffset = offset;
+    notifyUIUpdate();
+  }
+
+  List<ManualHighLowPoint> getStrategyHighLowPoints() {
+    return strategyHighLowPoints;
+  }
+
+  void _rebuildStrategyHighLowPoints() {
+    _strategyHighLowPoints = KlineNearbyHighLowStrategyService.instance.detect(
+      data,
+      timeframe: _currentTimeframe,
+    );
   }
 
   /// 记录当前渲染视图状态（缩放比例与绘制起点）
@@ -167,6 +212,7 @@ class ChartViewController extends _ChartControllerBase
       initKlineSelections();
       initWavePoints();
       initManualHighLowPoints();
+      _rebuildStrategyHighLowPoints();
     }
   }
   
@@ -206,6 +252,7 @@ class ChartViewController extends _ChartControllerBase
   void updateData(List<PriceData> newData, {bool preserveView = true}) {
     if (!_didDataSnapshotChange(data, newData)) {
       data = newData;
+      _rebuildStrategyHighLowPoints();
       return;
     }
 
@@ -225,6 +272,7 @@ class ChartViewController extends _ChartControllerBase
     if (data.isEmpty) {
       startIndex = 0;
       endIndex = 0;
+      _strategyHighLowPoints = [];
       return;
     }
 
@@ -232,6 +280,7 @@ class ChartViewController extends _ChartControllerBase
     onDataUpdatedForMA(data);
     // 波浪点を再計算
     onDataUpdatedForWavePoints();
+    _rebuildStrategyHighLowPoints();
 
     if (!preserveView) {
       // 大量データの場合は表示範囲を制限
@@ -468,6 +517,7 @@ class ChartViewController extends _ChartControllerBase
         onDataUpdatedForMA(data);
         // ウェーブポイントを再計算
         onDataUpdatedForWavePoints();
+        _rebuildStrategyHighLowPoints();
         
         // 应用klineDataLimit限制（如果设置了的话）
         LogService.instance.info('ChartViewController', '检查数据限制: klineDataLimit=$_klineDataLimit, 当前数据量=${data.length}');
@@ -488,6 +538,8 @@ class ChartViewController extends _ChartControllerBase
         } else {
           LogService.instance.info('ChartViewController', '数据限制条件不满足: klineDataLimit=$_klineDataLimit, data.length=${data.length}');
         }
+
+        _rebuildStrategyHighLowPoints();
         
         // 表示範囲を調整（最新データを表示、大量データの場合は最後の制限件数を表示）
         const int maxDataLimit = ChartConstants.maxDataLimit;

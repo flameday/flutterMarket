@@ -1065,6 +1065,114 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                     ),
                     const SizedBox(height: 8),
 
+                    const Text('高低点标记设置:', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    const Text('形状:'),
+                    DropdownButtonFormField<String>(
+                      initialValue: _appSettings?.highLowMarkerShape ?? 'triangle',
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: 'triangle', child: Text('三角形')),
+                        DropdownMenuItem(value: 'circle', child: Text('圆形')),
+                        DropdownMenuItem(value: 'square', child: Text('方形')),
+                        DropdownMenuItem(value: 'diamond', child: Text('菱形')),
+                      ],
+                      onChanged: (String? newValue) {
+                        if (newValue != null && _appSettings != null) {
+                          dialogSetState(() {
+                            _appSettings = _appSettings!.copyWith(highLowMarkerShape: newValue);
+                          });
+                          setState(() {});
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    const Text('高点颜色:'),
+                    DropdownButtonFormField<String>(
+                      initialValue: _appSettings?.highMarkerColor ?? '#FF9800',
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: '#FF9800', child: Text('橙色')),
+                        DropdownMenuItem(value: '#F44336', child: Text('红色')),
+                        DropdownMenuItem(value: '#9C27B0', child: Text('紫色')),
+                        DropdownMenuItem(value: '#FFFFFF', child: Text('白色')),
+                        DropdownMenuItem(value: '#00BCD4', child: Text('青色')),
+                      ],
+                      onChanged: (String? newValue) {
+                        if (newValue != null && _appSettings != null) {
+                          dialogSetState(() {
+                            _appSettings = _appSettings!.copyWith(highMarkerColor: newValue);
+                          });
+                          setState(() {});
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    const Text('低点颜色:'),
+                    DropdownButtonFormField<String>(
+                      initialValue: _appSettings?.lowMarkerColor ?? '#2196F3',
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: '#2196F3', child: Text('蓝色')),
+                        DropdownMenuItem(value: '#4CAF50', child: Text('绿色')),
+                        DropdownMenuItem(value: '#FFC107', child: Text('黄色')),
+                        DropdownMenuItem(value: '#FFFFFF', child: Text('白色')),
+                        DropdownMenuItem(value: '#00BCD4', child: Text('青色')),
+                      ],
+                      onChanged: (String? newValue) {
+                        if (newValue != null && _appSettings != null) {
+                          dialogSetState(() {
+                            _appSettings = _appSettings!.copyWith(lowMarkerColor: newValue);
+                          });
+                          setState(() {});
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Text('标记大小: ${(_appSettings?.highLowMarkerSize ?? 8.0).toStringAsFixed(1)}'),
+                    Slider(
+                      value: (_appSettings?.highLowMarkerSize ?? 8.0).clamp(4.0, 20.0),
+                      min: 4.0,
+                      max: 20.0,
+                      divisions: 16,
+                      label: (_appSettings?.highLowMarkerSize ?? 8.0).toStringAsFixed(1),
+                      onChanged: (double value) {
+                        if (_appSettings != null) {
+                          dialogSetState(() {
+                            _appSettings = _appSettings!.copyWith(highLowMarkerSize: value);
+                          });
+                          setState(() {});
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Text('与K线距离(像素): ${(_appSettings?.highLowMarkerOffset ?? 0.0).toStringAsFixed(1)}'),
+                    Slider(
+                      value: (_appSettings?.highLowMarkerOffset ?? 0.0).clamp(0.0, 24.0),
+                      min: 0.0,
+                      max: 24.0,
+                      divisions: 24,
+                      label: (_appSettings?.highLowMarkerOffset ?? 0.0).toStringAsFixed(1),
+                      onChanged: (double value) {
+                        if (_appSettings != null) {
+                          dialogSetState(() {
+                            _appSettings = _appSettings!.copyWith(highLowMarkerOffset: value);
+                          });
+                          setState(() {});
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+
                     Row(
                       children: [
                         Checkbox(
@@ -1758,6 +1866,11 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
       isAutoUpdateEnabled: _appSettings?.isAutoUpdateEnabled,
       autoUpdateIntervalMinutes: _appSettings?.autoUpdateIntervalMinutes,
       klineDataLimit: _appSettings?.klineDataLimit,
+      highLowMarkerSize: _appSettings?.highLowMarkerSize,
+      highLowMarkerShape: _appSettings?.highLowMarkerShape,
+      highMarkerColor: _appSettings?.highMarkerColor,
+      lowMarkerColor: _appSettings?.lowMarkerColor,
+      highLowMarkerOffset: _appSettings?.highLowMarkerOffset,
       onDownloadRequested: _handleDownloadRequest,
       onAutoUpdateToggled: _handleAutoUpdateToggle,
       selectedTimeframe: _selectedTimeframe,
