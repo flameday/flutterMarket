@@ -55,6 +55,8 @@ class CandlestickChart extends StatefulWidget {
   final String? highMarkerColor;
   final String? lowMarkerColor;
   final double? highLowMarkerOffset;
+  final bool? isStrategyMergeConsecutiveEnabled;
+  final bool? isStrategySupplementOnlyEnabled;
   final Timeframe? selectedTimeframe; // 选择的时间周期
   final TradingPair? selectedTradingPair; // 选择的交易对
   final Future<void> Function({bool showMessages})? onDownloadRequested; // データダウンロード要求コールバック
@@ -87,6 +89,8 @@ class CandlestickChart extends StatefulWidget {
     this.highMarkerColor,
     this.lowMarkerColor,
     this.highLowMarkerOffset,
+    this.isStrategyMergeConsecutiveEnabled,
+    this.isStrategySupplementOnlyEnabled,
     this.selectedTimeframe,
     this.selectedTradingPair,
     this.onDownloadRequested,
@@ -250,6 +254,17 @@ class _CandlestickChartState extends State<CandlestickChart> {
       lowColor: widget.lowMarkerColor ?? _controller.lowMarkerColor,
       offset: widget.highLowMarkerOffset ?? _controller.highLowMarkerOffset,
     );
+
+    if (widget.isStrategyMergeConsecutiveEnabled != null) {
+      _controller.setStrategyMergeConsecutiveEnabled(
+        widget.isStrategyMergeConsecutiveEnabled!,
+      );
+    }
+    if (widget.isStrategySupplementOnlyEnabled != null) {
+      _controller.setStrategySupplementOnlyEnabled(
+        widget.isStrategySupplementOnlyEnabled!,
+      );
+    }
     
     // トレンドフィルタリング設定初期化
     if (widget.isTrendFilteringEnabled != null) {
@@ -350,6 +365,22 @@ class _CandlestickChartState extends State<CandlestickChart> {
         highColor: widget.highMarkerColor ?? _controller.highMarkerColor,
         lowColor: widget.lowMarkerColor ?? _controller.lowMarkerColor,
         offset: widget.highLowMarkerOffset ?? _controller.highLowMarkerOffset,
+      );
+    }
+
+    if (widget.isStrategyMergeConsecutiveEnabled !=
+            oldWidget.isStrategyMergeConsecutiveEnabled &&
+        widget.isStrategyMergeConsecutiveEnabled != null) {
+      _controller.setStrategyMergeConsecutiveEnabled(
+        widget.isStrategyMergeConsecutiveEnabled!,
+      );
+    }
+
+    if (widget.isStrategySupplementOnlyEnabled !=
+            oldWidget.isStrategySupplementOnlyEnabled &&
+        widget.isStrategySupplementOnlyEnabled != null) {
+      _controller.setStrategySupplementOnlyEnabled(
+        widget.isStrategySupplementOnlyEnabled!,
       );
     }
     

@@ -138,6 +138,8 @@ class ChartViewController extends _ChartControllerBase
   String _highMarkerColor = '#FF9800';
   String _lowMarkerColor = '#2196F3';
   double _highLowMarkerOffset = 0.0;
+  bool _isStrategyMergeConsecutiveEnabled = true;
+  bool _isStrategySupplementOnlyEnabled = false;
 
   // 旧版图表页面互換用プロパティ
   bool isFormattedWaveVisible = false;
@@ -150,6 +152,8 @@ class ChartViewController extends _ChartControllerBase
   String get highMarkerColor => _highMarkerColor;
   String get lowMarkerColor => _lowMarkerColor;
   double get highLowMarkerOffset => _highLowMarkerOffset;
+  bool get isStrategyMergeConsecutiveEnabled => _isStrategyMergeConsecutiveEnabled;
+  bool get isStrategySupplementOnlyEnabled => _isStrategySupplementOnlyEnabled;
   
   void setTimeframe(String timeframe) {
     _currentTimeframe = timeframe;
@@ -172,14 +176,33 @@ class ChartViewController extends _ChartControllerBase
     notifyUIUpdate();
   }
 
+  void setStrategyMergeConsecutiveEnabled(bool enabled) {
+    if (_isStrategyMergeConsecutiveEnabled == enabled) return;
+    _isStrategyMergeConsecutiveEnabled = enabled;
+    _rebuildStrategyHighLowPoints();
+    notifyUIUpdate();
+  }
+
+  void setStrategySupplementOnlyEnabled(bool enabled) {
+    if (_isStrategySupplementOnlyEnabled == enabled) return;
+    _isStrategySupplementOnlyEnabled = enabled;
+    notifyUIUpdate();
+  }
+
   List<ManualHighLowPoint> getStrategyHighLowPoints() {
-    return strategyHighLowPoints;
+    if (!_isStrategySupplementOnlyEnabled) {
+      return strategyHighLowPoints;
+    }
+    return strategyHighLowPoints
+        .where((point) => point.note == 'kline_nearby_strategy_supp')
+        .toList(growable: false);
   }
 
   void _rebuildStrategyHighLowPoints() {
     _strategyHighLowPoints = KlineNearbyHighLowStrategyService.instance.detect(
       data,
       timeframe: _currentTimeframe,
+      mergeConsecutive: _isStrategyMergeConsecutiveEnabled,
     );
   }
 

@@ -1065,6 +1065,50 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                     ),
                     const SizedBox(height: 8),
 
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _appSettings?.isStrategyMergeConsecutiveEnabled ?? true,
+                          onChanged: (bool? value) {
+                            if (_appSettings != null) {
+                              dialogSetState(() {
+                                _appSettings = _appSettings!.copyWith(
+                                  isStrategyMergeConsecutiveEnabled: value ?? true,
+                                );
+                              });
+                              setState(() {});
+                            }
+                          },
+                        ),
+                        const Expanded(
+                          child: Text('策略步骤2: 合并连续高低点（关闭时显示Step1原始结果）'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _appSettings?.isStrategySupplementOnlyEnabled ?? false,
+                          onChanged: (bool? value) {
+                            if (_appSettings != null) {
+                              dialogSetState(() {
+                                _appSettings = _appSettings!.copyWith(
+                                  isStrategySupplementOnlyEnabled: value ?? false,
+                                );
+                              });
+                              setState(() {});
+                            }
+                          },
+                        ),
+                        const Expanded(
+                          child: Text('仅显示补充点（Debug）'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
                     const Text('高低点标记设置:', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
                     const Text('形状:'),
@@ -1871,6 +1915,8 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
       highMarkerColor: _appSettings?.highMarkerColor,
       lowMarkerColor: _appSettings?.lowMarkerColor,
       highLowMarkerOffset: _appSettings?.highLowMarkerOffset,
+      isStrategyMergeConsecutiveEnabled: _appSettings?.isStrategyMergeConsecutiveEnabled,
+      isStrategySupplementOnlyEnabled: _appSettings?.isStrategySupplementOnlyEnabled,
       onDownloadRequested: _handleDownloadRequest,
       onAutoUpdateToggled: _handleAutoUpdateToggle,
       selectedTimeframe: _selectedTimeframe,

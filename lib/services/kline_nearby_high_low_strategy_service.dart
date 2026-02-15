@@ -12,12 +12,13 @@ class KlineNearbyHighLowStrategyService {
   List<ManualHighLowPoint> detect(
     List<PriceData> data, {
     String? timeframe,
+    bool mergeConsecutive = true,
   }) {
     if (data.length < _minFollowCandles + 1) {
       return const [];
     }
 
-    final List<ManualHighLowPoint> result = [];
+    final List<ManualHighLowPoint> step1Points = [];
 
     for (int n = 0; n < data.length - _minFollowCandles; n++) {
       final PriceData current = data[n];
@@ -46,7 +47,7 @@ class KlineNearbyHighLowStrategyService {
       final double currentBodyLow = _bodyLow(current);
 
       if (currentDirection == _Direction.down) {
-        final bool breaksUpward = _breaksAboveBodyHigh(
+        final bool breaksUpward = _breaksAboveBodyHighByClose(
           data,
           start: sequenceStart,
           endExclusive: sequenceEnd,
@@ -58,7 +59,7 @@ class KlineNearbyHighLowStrategyService {
         }
 
         final PriceData pivot = data[sequenceStart];
-        result.add(
+        step1Points.add(
           ManualHighLowPoint(
             id: 'strategy-low-${pivot.timestamp}-$n',
             timestamp: pivot.timestamp,
@@ -70,7 +71,7 @@ class KlineNearbyHighLowStrategyService {
           ),
         );
       } else {
-        final bool breaksDownward = _breaksBelowBodyLow(
+        final bool breaksDownward = _breaksBelowBodyLowByClose(
           data,
           start: sequenceStart,
           endExclusive: sequenceEnd,
@@ -82,7 +83,7 @@ class KlineNearbyHighLowStrategyService {
         }
 
         final PriceData pivot = data[sequenceStart];
-        result.add(
+        step1Points.add(
           ManualHighLowPoint(
             id: 'strategy-high-${pivot.timestamp}-$n',
             timestamp: pivot.timestamp,
@@ -96,31 +97,178 @@ class KlineNearbyHighLowStrategyService {
       }
     }
 
-    return result;
+    final List<ManualHighLowPoint> enrichedStep1Points =
+        _appendSupplementExtrema(step1Points, data, timeframe: timeframe);
+
+    if (!mergeConsecutive) {
+      return enrichedStep1Points;
+    }
+
+    return _mergeConsecutiveByType(enrichedStep1Points);
   }
 
-  bool _breaksAboveBodyHigh(
+  List<ManualHighLowPoint> _appendSupplementExtrema(
+    List<ManualHighLowPoint> basePoints,
+    List<PriceData> data, {
+    required String? timeframe,
+  }) {
+    if (basePoints.length < 2 || data.isEmpty) {
+      return basePoints;
+    }
+
+    final List<ManualHighLowPoint> sortedBase = List<ManualHighLowPoint>.from(basePoints)
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
+    final Map<int, int> indexByTimestamp = {
+      for (int i = 0; i < data.length; i++) data[i].timestamp: i,
+    };
+
+    final List<ManualHighLowPoint> output = List<ManualHighLowPoint>.from(sortedBase);
+    final Set<String> existingKeys = {
+      for (final p in output) '${p.timestamp}-${p.isHigh ? 'H' : 'L'}',
+    };
+
+    for (int i = 0; i < sortedBase.length - 1; i++) {
+      final ManualHighLowPoint current = sortedBase[i];
+      final ManualHighLowPoint next = sortedBase[i + 1];
+
+      if (current.isHigh == next.isHigh) {
+        continue;
+      }
+
+      final int? startIndexRaw = indexByTimestamp[current.timestamp];
+      final int? endIndexRaw = indexByTimestamp[next.timestamp];
+      if (startIndexRaw == null || endIndexRaw == null) {
+        continue;
+      }
+
+      final int start = startIndexRaw < endIndexRaw ? startIndexRaw : endIndexRaw;
+      final int end = startIndexRaw < endIndexRaw ? endIndexRaw : startIndexRaw;
+      if (end < start) {
+        continue;
+      }
+
+      if (!current.isHigh && next.isHigh) {
+        double maxBodyHigh = double.negativeInfinity;
+        for (int k = start; k <= end; k++) {
+          final double bodyHigh = _bodyHigh(data[k]);
+          if (bodyHigh > maxBodyHigh) {
+            maxBodyHigh = bodyHigh;
+          }
+        }
+
+        for (int k = start; k <= end; k++) {
+          final double bodyHigh = _bodyHigh(data[k]);
+          if ((bodyHigh - maxBodyHigh).abs() < 0.0000000001) {
+            final int ts = data[k].timestamp;
+            final String key = '$ts-H';
+            if (existingKeys.contains(key)) continue;
+            output.add(
+              ManualHighLowPoint(
+                id: 'strategy-supp-high-$ts-$i-$k',
+                timestamp: ts,
+                price: bodyHigh,
+                isHigh: true,
+                createdAt: DateTime.now(),
+                note: 'kline_nearby_strategy_supp',
+                timeframe: timeframe,
+              ),
+            );
+            existingKeys.add(key);
+          }
+        }
+      }
+
+      if (current.isHigh && !next.isHigh) {
+        double minBodyLow = double.infinity;
+        for (int k = start; k <= end; k++) {
+          final double bodyLow = _bodyLow(data[k]);
+          if (bodyLow < minBodyLow) {
+            minBodyLow = bodyLow;
+          }
+        }
+
+        for (int k = start; k <= end; k++) {
+          final double bodyLow = _bodyLow(data[k]);
+          if ((bodyLow - minBodyLow).abs() < 0.0000000001) {
+            final int ts = data[k].timestamp;
+            final String key = '$ts-L';
+            if (existingKeys.contains(key)) continue;
+            output.add(
+              ManualHighLowPoint(
+                id: 'strategy-supp-low-$ts-$i-$k',
+                timestamp: ts,
+                price: bodyLow,
+                isHigh: false,
+                createdAt: DateTime.now(),
+                note: 'kline_nearby_strategy_supp',
+                timeframe: timeframe,
+              ),
+            );
+            existingKeys.add(key);
+          }
+        }
+      }
+    }
+
+    output.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+    return output;
+  }
+
+  List<ManualHighLowPoint> _mergeConsecutiveByType(
+    List<ManualHighLowPoint> points,
+  ) {
+    if (points.length < 2) return points;
+
+    final List<ManualHighLowPoint> merged = [];
+    int i = 0;
+    while (i < points.length) {
+      ManualHighLowPoint best = points[i];
+      int j = i + 1;
+
+      while (j < points.length && points[j].isHigh == best.isHigh) {
+        final ManualHighLowPoint current = points[j];
+        if (best.isHigh && current.price > best.price) {
+          best = current;
+        }
+        j++;
+      }
+
+      if (best.isHigh) {
+        merged.add(best);
+      } else {
+        for (int k = i; k < j; k++) {
+          merged.add(points[k]);
+        }
+      }
+      i = j;
+    }
+
+    return merged;
+  }
+
+  bool _breaksAboveBodyHighByClose(
     List<PriceData> data, {
     required int start,
     required int endExclusive,
     required double bodyHigh,
   }) {
     for (int i = start; i < endExclusive; i++) {
-      if (_bodyHigh(data[i]) > bodyHigh) {
+      if (data[i].close > bodyHigh) {
         return true;
       }
     }
     return false;
   }
 
-  bool _breaksBelowBodyLow(
+  bool _breaksBelowBodyLowByClose(
     List<PriceData> data, {
     required int start,
     required int endExclusive,
     required double bodyLow,
   }) {
     for (int i = start; i < endExclusive; i++) {
-      if (_bodyLow(data[i]) < bodyLow) {
+      if (data[i].close < bodyLow) {
         return true;
       }
     }

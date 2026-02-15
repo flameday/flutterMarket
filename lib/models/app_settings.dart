@@ -35,7 +35,14 @@ class AppSettings {
   final String highMarkerColor;
   final String lowMarkerColor;
   final double highLowMarkerOffset;
+    final bool? _isStrategyMergeConsecutiveEnabled;
+    final bool? _isStrategySupplementOnlyEnabled;
   final DateTime lastUpdated;
+
+    bool get isStrategyMergeConsecutiveEnabled =>
+      _isStrategyMergeConsecutiveEnabled ?? true;
+    bool get isStrategySupplementOnlyEnabled =>
+      _isStrategySupplementOnlyEnabled ?? false;
 
   const AppSettings({
     this.selectedTradingPair = TradingPair.eurusd,
@@ -82,8 +89,11 @@ class AppSettings {
     this.highMarkerColor = '#FF9800',
     this.lowMarkerColor = '#2196F3',
     this.highLowMarkerOffset = 0.0,
+    bool? isStrategyMergeConsecutiveEnabled = true,
+    bool? isStrategySupplementOnlyEnabled = false,
     required this.lastUpdated,
-  });
+  })  : _isStrategyMergeConsecutiveEnabled = isStrategyMergeConsecutiveEnabled,
+        _isStrategySupplementOnlyEnabled = isStrategySupplementOnlyEnabled;
 
   /// JSONからAppSettingsインスタンスを作成
   factory AppSettings.fromJson(Map<String, dynamic> json) {
@@ -121,6 +131,14 @@ class AppSettings {
       highMarkerColor: json['highMarkerColor'] ?? defaults.highMarkerColor,
       lowMarkerColor: json['lowMarkerColor'] ?? defaults.lowMarkerColor,
       highLowMarkerOffset: (json['highLowMarkerOffset'] ?? defaults.highLowMarkerOffset).toDouble(),
+      isStrategyMergeConsecutiveEnabled: _parseBool(
+        json['isStrategyMergeConsecutiveEnabled'],
+        defaults.isStrategyMergeConsecutiveEnabled,
+      ),
+      isStrategySupplementOnlyEnabled: _parseBool(
+        json['isStrategySupplementOnlyEnabled'],
+        defaults.isStrategySupplementOnlyEnabled,
+      ),
       lastUpdated: DateTime.parse(json['lastUpdated'] ?? DateTime.now().toIso8601String()),
     );
   }
@@ -160,6 +178,8 @@ class AppSettings {
       'highMarkerColor': highMarkerColor,
       'lowMarkerColor': lowMarkerColor,
       'highLowMarkerOffset': highLowMarkerOffset,
+      'isStrategyMergeConsecutiveEnabled': isStrategyMergeConsecutiveEnabled,
+      'isStrategySupplementOnlyEnabled': isStrategySupplementOnlyEnabled,
       'lastUpdated': lastUpdated.toIso8601String(),
     };
   }
@@ -198,6 +218,8 @@ class AppSettings {
     String? highMarkerColor,
     String? lowMarkerColor,
     double? highLowMarkerOffset,
+    bool? isStrategyMergeConsecutiveEnabled,
+    bool? isStrategySupplementOnlyEnabled,
   }) {
     return AppSettings(
       selectedTradingPair: selectedTradingPair ?? this.selectedTradingPair,
@@ -232,6 +254,8 @@ class AppSettings {
       highMarkerColor: highMarkerColor ?? this.highMarkerColor,
       lowMarkerColor: lowMarkerColor ?? this.lowMarkerColor,
       highLowMarkerOffset: highLowMarkerOffset ?? this.highLowMarkerOffset,
+      isStrategyMergeConsecutiveEnabled: isStrategyMergeConsecutiveEnabled ?? this.isStrategyMergeConsecutiveEnabled,
+      isStrategySupplementOnlyEnabled: isStrategySupplementOnlyEnabled ?? this.isStrategySupplementOnlyEnabled,
       lastUpdated: DateTime.now(),
     );
   }
@@ -368,6 +392,17 @@ class AppSettings {
     }
 
     return result;
+  }
+
+  static bool _parseBool(dynamic value, bool defaultValue) {
+    if (value is bool) return value;
+    if (value is num) return value != 0;
+    if (value is String) {
+      final String normalized = value.trim().toLowerCase();
+      if (normalized == 'true' || normalized == '1') return true;
+      if (normalized == 'false' || normalized == '0') return false;
+    }
+    return defaultValue;
   }
 
   /// デフォルト設定を取得
