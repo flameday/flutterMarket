@@ -7,7 +7,7 @@ class KlineNearbyHighLowStrategyService {
   static final KlineNearbyHighLowStrategyService instance =
       KlineNearbyHighLowStrategyService._();
 
-  static const int _minFollowCandles = 2;
+  static const int _minFollowCandles = 1;
 
   List<ManualHighLowPoint> detect(
     List<PriceData> data, {
