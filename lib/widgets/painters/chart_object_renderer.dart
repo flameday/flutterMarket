@@ -642,6 +642,81 @@ class RectangleObjectRenderer extends ChartObjectRenderer<RectangleObject> {
   }
 }
 
+class RectangleStatsObjectRenderer
+    extends ChartObjectRenderer<RectangleStatsObject> {
+  const RectangleStatsObjectRenderer();
+
+  @override
+  void render(ChartObjectRenderContext context, RectangleStatsObject object) {
+    final int? startIndex = context.resolveAnchorIndex(object.start);
+    final int? endIndex = context.resolveAnchorIndex(object.end);
+    if (startIndex == null || endIndex == null) return;
+
+    final x1 = context.candleXByIndex(startIndex);
+    final y1 = context.priceToY(object.start.price);
+    final x2 = context.candleXByIndex(endIndex);
+    final y2 = context.priceToY(object.end.price);
+
+    final rect = Rect.fromPoints(Offset(x1, y1), Offset(x2, y2));
+    if (rect.width <= 0.5 || rect.height <= 0.5) return;
+
+    final baseColor = context.parseHexColor(object.color, Colors.lightBlue);
+    final fillPaint = Paint()
+      ..color = baseColor.withValues(alpha: object.fillAlpha)
+      ..style = PaintingStyle.fill;
+    final strokePaint = Paint()
+      ..color = baseColor
+      ..strokeWidth = object.width
+      ..style = PaintingStyle.stroke;
+
+    context.canvas.drawRect(rect, fillPaint);
+    context.canvas.drawRect(rect, strokePaint);
+
+    final int leftIndex = startIndex < endIndex ? startIndex : endIndex;
+    final int rightIndex = startIndex < endIndex ? endIndex : startIndex;
+    final int klineCount = (rightIndex - leftIndex).abs() + 1;
+
+    final double lowPrice = object.start.price < object.end.price
+        ? object.start.price
+        : object.end.price;
+    final double highPrice = object.start.price > object.end.price
+        ? object.start.price
+        : object.end.price;
+
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: 'K线: $klineCount\n价格区间: ${lowPrice.toStringAsFixed(5)} - ${highPrice.toStringAsFixed(5)}',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 11,
+          height: 1.25,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      maxLines: 2,
+    )..layout(maxWidth: rect.width - 8 > 40 ? rect.width - 8 : 40);
+
+    final double labelX = rect.left + 4;
+    final double labelY = rect.top + 4;
+    final labelBg = Rect.fromLTWH(
+      labelX - 2,
+      labelY - 2,
+      textPainter.width + 4,
+      textPainter.height + 4,
+    );
+
+    final labelPaint = Paint()
+      ..color = Colors.black.withValues(alpha: 0.55)
+      ..style = PaintingStyle.fill;
+
+    context.canvas.drawRRect(
+      RRect.fromRectAndRadius(labelBg, const Radius.circular(4)),
+      labelPaint,
+    );
+    textPainter.paint(context.canvas, Offset(labelX, labelY));
+  }
+}
+
 class FreePolylineObjectRenderer extends ChartObjectRenderer<FreePolylineObject> {
   const FreePolylineObjectRenderer();
 
@@ -695,6 +770,7 @@ class ChartObjectRendererRegistry {
               TrendAnalysisLineObjectRenderer(),
               SmoothTrendPolylineObjectRenderer(),
               CircleObjectRenderer(),
+              RectangleStatsObjectRenderer(),
               RectangleObjectRenderer(),
               FreePolylineObjectRenderer(),
             ];

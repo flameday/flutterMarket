@@ -257,6 +257,19 @@ class RectangleObject extends ChartObject {
   final double fillAlpha;
 }
 
+class RectangleStatsObject extends RectangleObject {
+  const RectangleStatsObject({
+    required super.id,
+    required super.start,
+    required super.end,
+    super.color = '#03A9F4',
+    super.width = 2.0,
+    super.fillAlpha = 0.12,
+    super.layer = ChartObjectLayer.aboveIndicators,
+    super.visible = true,
+  });
+}
+
 class FreePolylineObject extends ChartObject {
   const FreePolylineObject({
     required super.id,

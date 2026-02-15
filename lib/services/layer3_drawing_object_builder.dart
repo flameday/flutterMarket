@@ -30,7 +30,7 @@ class Layer3DrawingObjectBuilder {
           layer: ChartObjectLayer.interaction,
         );
       case DrawingTool.rectangle:
-        return RectangleObject(
+        return RectangleStatsObject(
           id: 'rect-$uniqueId',
           start: start,
           end: end,

@@ -353,41 +353,31 @@ class UserDrawingLayer3Manager {
     final object = rectangleObjects[idx];
     if (target == ObjectDragTarget.start) {
       final int nextIndex = clampDataIndex(newIndex);
-      rectangleObjects[idx] = RectangleObject(
-        id: object.id,
+      rectangleObjects[idx] = _copyRectangleObject(
+        object,
         start: CandleAnchor(
           index: nextIndex,
           price: newPrice,
           timestamp: newTimestamp ?? indexToTimestamp(nextIndex),
         ),
         end: object.end,
-        color: object.color,
-        width: object.width,
-        fillAlpha: object.fillAlpha,
-        layer: object.layer,
-        visible: object.visible,
       );
     } else if (target == ObjectDragTarget.end) {
       final int nextIndex = clampDataIndex(newIndex);
-      rectangleObjects[idx] = RectangleObject(
-        id: object.id,
+      rectangleObjects[idx] = _copyRectangleObject(
+        object,
         start: object.start,
         end: CandleAnchor(
           index: nextIndex,
           price: newPrice,
           timestamp: newTimestamp ?? indexToTimestamp(nextIndex),
         ),
-        color: object.color,
-        width: object.width,
-        fillAlpha: object.fillAlpha,
-        layer: object.layer,
-        visible: object.visible,
       );
     } else {
       final int nextStartIndex = clampDataIndex(object.start.index + indexDelta);
       final int nextEndIndex = clampDataIndex(object.end.index + indexDelta);
-      rectangleObjects[idx] = RectangleObject(
-        id: object.id,
+      rectangleObjects[idx] = _copyRectangleObject(
+        object,
         start: CandleAnchor(
           index: nextStartIndex,
           price: object.start.price + priceDelta,
@@ -398,13 +388,38 @@ class UserDrawingLayer3Manager {
           price: object.end.price + priceDelta,
           timestamp: indexToTimestamp(nextEndIndex),
         ),
-        color: object.color,
-        width: object.width,
-        fillAlpha: object.fillAlpha,
-        layer: object.layer,
-        visible: object.visible,
       );
     }
+  }
+
+  RectangleObject _copyRectangleObject(
+    RectangleObject source, {
+    required CandleAnchor start,
+    required CandleAnchor end,
+  }) {
+    if (source is RectangleStatsObject) {
+      return RectangleStatsObject(
+        id: source.id,
+        start: start,
+        end: end,
+        color: source.color,
+        width: source.width,
+        fillAlpha: source.fillAlpha,
+        layer: source.layer,
+        visible: source.visible,
+      );
+    }
+
+    return RectangleObject(
+      id: source.id,
+      start: start,
+      end: end,
+      color: source.color,
+      width: source.width,
+      fillAlpha: source.fillAlpha,
+      layer: source.layer,
+      visible: source.visible,
+    );
   }
 
   void _updateFibonacciDuringDrag({
