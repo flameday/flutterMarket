@@ -40,11 +40,6 @@ class CandlestickChart extends StatefulWidget {
   final bool? isOhlcVisible; // 右上O/H/L/C表示
   final bool? isKlineVisible; // K線表示/非表示
   final Color? backgroundColor; // 背景色
-  final bool? isTrendFilteringEnabled; // トレンドフィルタリング有効/無効
-  final double? trendFilteringThreshold; // トレンドフィルタリング閾値
-  final double? trendFilteringNearThreshold; // トレンドフィルタリング近い距離閾値
-  final double? trendFilteringFarThreshold; // トレンドフィルタリング遠い距離閾値
-  final int? trendFilteringMinGapBars; // トレンドフィルタリング最低バー間隔
   final bool? isMaTrendBackgroundEnabled; // 移动平均线趋势背景是否启用
   final bool? isMousePositionZoomEnabled; // 鼠标位置缩放是否启用
   final bool? isAutoUpdateEnabled; // 自动更新是否启用
@@ -77,11 +72,6 @@ class CandlestickChart extends StatefulWidget {
     this.isOhlcVisible,
     this.isKlineVisible,
     this.backgroundColor,
-    this.isTrendFilteringEnabled,
-    this.trendFilteringThreshold,
-    this.trendFilteringNearThreshold,
-    this.trendFilteringFarThreshold,
-    this.trendFilteringMinGapBars,
     this.isMaTrendBackgroundEnabled,
     this.isMousePositionZoomEnabled,
     this.isAutoUpdateEnabled,
@@ -279,12 +269,6 @@ class _CandlestickChartState extends State<CandlestickChart> {
       width: widget.strategyPolylineWidth ?? _controller.strategyPolylineWidth,
     );
     
-    // トレンドフィルタリング設定初期化
-    if (widget.isTrendFilteringEnabled != null) {
-      // LogService.instance.info('CandlestickChart', 'トレンドフィルタリング設定初期化: ${widget.isTrendFilteringEnabled}');
-      _controller.setTrendFilteringEnabled(widget.isTrendFilteringEnabled!);
-    }
-
     if (widget.isMaTrendBackgroundEnabled != null) {
       // LogService.instance.info('CandlestickChart', '移动平均线趋势背景設定初期化: ${widget.isMaTrendBackgroundEnabled}');
       _controller.setMaTrendBackgroundEnabled(widget.isMaTrendBackgroundEnabled!);
@@ -295,33 +279,6 @@ class _CandlestickChartState extends State<CandlestickChart> {
       _controller.setMousePositionZoomEnabled(widget.isMousePositionZoomEnabled!);
     }
 
-    
-    if (widget.trendFilteringThreshold != null) {
-      // LogService.instance.info('CandlestickChart', 'トレンドフィルタリング閾値初期化: ${widget.trendFilteringThreshold}');
-      _controller.setTrendFilteringThreshold(widget.trendFilteringThreshold!);
-    }
-    if (widget.trendFilteringNearThreshold != null) {
-      // LogService.instance.info('CandlestickChart', 'トレンドフィルタリング近い距離閾値初期化: ${widget.trendFilteringNearThreshold}');
-      _controller.setTrendFilteringNearThreshold(widget.trendFilteringNearThreshold!);
-    }
-    if (widget.trendFilteringFarThreshold != null) {
-      // LogService.instance.info('CandlestickChart', 'トレンドフィルタリング遠い距離閾値初期化: ${widget.trendFilteringFarThreshold}');
-      _controller.setTrendFilteringFarThreshold(widget.trendFilteringFarThreshold!);
-    }
-    if (widget.trendFilteringMinGapBars != null) {
-      // LogService.instance.info('CandlestickChart', 'トレンドフィルタリング最低バー間隔初期化: ${widget.trendFilteringMinGapBars}');
-      _controller.setTrendFilteringMinGapBars(widget.trendFilteringMinGapBars!);
-    }
-    
-    // 初期化後にトレンドフィルタリングを強制更新
-    // LogService.instance.info('CandlestickChart', 'initState完了: widget.isTrendFilteringEnabled=${widget.isTrendFilteringEnabled}');
-    if (widget.isTrendFilteringEnabled == true) {
-      // LogService.instance.info('CandlestickChart', '初期化後トレンドフィルタリング強制更新');
-      _controller.setTrendFilteringEnabled(true);
-    } else {
-      // LogService.instance.info('CandlestickChart', '初期化時トレンドフィルタリング無効');
-    }
-    
     if (widget.data.isNotEmpty) {
       // 初回ビルド後に画面幅に基づいて表示範囲を初期化
       // 最新のK線が右端に表示されるように設定
@@ -410,36 +367,10 @@ class _CandlestickChartState extends State<CandlestickChart> {
       );
     }
     
-    
-
-    // トレンドフィルタリング設定更新
-    // LogService.instance.debug('CandlestickChart', 'didUpdateWidget: widget.isTrendFilteringEnabled=${widget.isTrendFilteringEnabled}, oldWidget.isTrendFilteringEnabled=${oldWidget.isTrendFilteringEnabled}');
-    if (widget.isTrendFilteringEnabled != oldWidget.isTrendFilteringEnabled && widget.isTrendFilteringEnabled != null) {
-      // LogService.instance.info('CandlestickChart', 'トレンドフィルタリング設定更新: ${widget.isTrendFilteringEnabled}');
-      _controller.setTrendFilteringEnabled(widget.isTrendFilteringEnabled!);
-    }
-
     // 鼠标位置缩放设置更新
     if (widget.isMousePositionZoomEnabled != oldWidget.isMousePositionZoomEnabled && widget.isMousePositionZoomEnabled != null) {
       // LogService.instance.info('CandlestickChart', '鼠标位置缩放設定更新: ${widget.isMousePositionZoomEnabled}');
       _controller.setMousePositionZoomEnabled(widget.isMousePositionZoomEnabled!);
-    }
-
-    if (widget.trendFilteringThreshold != oldWidget.trendFilteringThreshold && widget.trendFilteringThreshold != null) {
-      // LogService.instance.info('CandlestickChart', 'トレンドフィルタリング閾値更新: ${widget.trendFilteringThreshold}');
-      _controller.setTrendFilteringThreshold(widget.trendFilteringThreshold!);
-    }
-    if (widget.trendFilteringNearThreshold != oldWidget.trendFilteringNearThreshold && widget.trendFilteringNearThreshold != null) {
-      // LogService.instance.info('CandlestickChart', 'トレンドフィルタリング近い距離閾値更新: ${widget.trendFilteringNearThreshold}');
-      _controller.setTrendFilteringNearThreshold(widget.trendFilteringNearThreshold!);
-    }
-    if (widget.trendFilteringFarThreshold != oldWidget.trendFilteringFarThreshold && widget.trendFilteringFarThreshold != null) {
-      // LogService.instance.info('CandlestickChart', 'トレンドフィルタリング遠い距離閾値更新: ${widget.trendFilteringFarThreshold}');
-      _controller.setTrendFilteringFarThreshold(widget.trendFilteringFarThreshold!);
-    }
-    if (widget.trendFilteringMinGapBars != oldWidget.trendFilteringMinGapBars && widget.trendFilteringMinGapBars != null) {
-      // LogService.instance.info('CandlestickChart', 'トレンドフィルタリング最低バー間隔更新: ${widget.trendFilteringMinGapBars}');
-      _controller.setTrendFilteringMinGapBars(widget.trendFilteringMinGapBars!);
     }
   }
 
@@ -453,17 +384,9 @@ class _CandlestickChartState extends State<CandlestickChart> {
 
   @override
   Widget build(BuildContext context) {
-    // LogService.instance.debug('CandlestickChart', 'build開始: filteredWavePoints=${_controller.filteredWavePoints != null ? "存在" : "null"}');
-    // LogService.instance.debug('CandlestickChart', 'isTrendFilteringEnabled=${widget.isTrendFilteringEnabled}');
-    // LogService.instance.debug('CandlestickChart', 'controller.isTrendFilteringEnabled=${_controller.isTrendFilteringEnabled}');
+    // LogService.instance.debug('CandlestickChart', 'build開始');
     // LogService.instance.debug('CandlestickChart', 'wavePoints=${_controller.wavePoints != null ? "存在" : "null"}');
     // LogService.instance.debug('CandlestickChart', 'data.length=${widget.data.length}');
-    
-    // トレンドフィルタリングが有効だがfilteredWavePointsがnullの場合、強制更新
-    if (widget.isTrendFilteringEnabled == true && _controller.filteredWavePoints == null) {
-      // LogService.instance.info('CandlestickChart', 'build中: トレンドフィルタリング強制更新実行');
-      _controller.setTrendFilteringEnabled(true);
-    }
     
     if (widget.data.isEmpty) {
       return Container(
@@ -1633,7 +1556,6 @@ class _CandlestickChartState extends State<CandlestickChart> {
       controller: _controller,
       trendLines: _trendLines,
       selectedTrendLineId: _selectedTrendLineId,
-      includeTrendFiltering: widget.isTrendFilteringEnabled ?? false,
       includeFibonacciForSelectedTrendLine: false,
     );
     return objects;

@@ -531,17 +531,6 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
             constraints: const BoxConstraints(),
           ),
           IconButton(
-            onPressed: _toggleTrendFiltering,
-            icon: Icon(
-              _appSettings?.isTrendFilteringEnabled == true ? Icons.trending_up : Icons.trending_flat,
-              size: 20,
-              color: _appSettings?.isTrendFilteringEnabled == true ? Colors.green : Colors.grey,
-            ),
-            tooltip: 'トレンドフィルタリング',
-            padding: const EdgeInsets.all(8),
-            constraints: const BoxConstraints(),
-          ),
-          IconButton(
             onPressed: _toggleMaTrendBackground,
             icon: Icon(
               _appSettings?.isMaTrendBackgroundEnabled == true ? Icons.color_lens : Icons.color_lens_outlined,
@@ -1334,101 +1323,6 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                     const SizedBox(height: 16),
 
 
-                    // トレンドフィルタリング設定
-                    const Text('トレンドフィルタリング設定:', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: _appSettings?.isTrendFilteringEnabled ?? false,
-                          onChanged: (bool? value) {
-                            if (_appSettings != null) {
-                              dialogSetState(() {
-                                _appSettings = _appSettings!.copyWith(isTrendFilteringEnabled: value ?? false);
-                              });
-                              // 立即更新主UI以预览效果
-                              setState(() {});
-                            }
-                          },
-                        ),
-                        const Text('トレンドフィルタリングを有効にする'),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-
-                    // 近い距離の閾値
-                    const Text('近い距離の閾値:'),
-                    Row(
-                      children: [
-                        const Text('0.1%'),
-                        Expanded(
-                          child: Slider(
-                            value: (_appSettings?.trendFilteringNearThreshold ?? 0.01) * 100,
-                            min: 0.1,
-                            max: 5.0,
-                            divisions: 49,
-                            onChanged: (double value) {
-                              if (_appSettings != null) {
-                                dialogSetState(() {
-                                  _appSettings = _appSettings!.copyWith(trendFilteringNearThreshold: value / 100);
-                                });
-                              }
-                            },
-                          ),
-                        ),
-                        Text('${((_appSettings?.trendFilteringNearThreshold ?? 0.01) * 100).toStringAsFixed(1)}%'),
-                      ],
-                    ),
-                    
-                    // 遠い距離の閾値
-                    const Text('遠い距離の閾値:'),
-                    Row(
-                      children: [
-                        const Text('0.5%'),
-                        Expanded(
-                          child: Slider(
-                            value: (_appSettings?.trendFilteringFarThreshold ?? 0.02) * 100,
-                            min: 0.5,
-                            max: 10.0,
-                            divisions: 95,
-                            onChanged: (double value) {
-                              if (_appSettings != null) {
-                                dialogSetState(() {
-                                  _appSettings = _appSettings!.copyWith(trendFilteringFarThreshold: value / 100);
-                                });
-                              }
-                            },
-                          ),
-                        ),
-                        Text('${((_appSettings?.trendFilteringFarThreshold ?? 0.02) * 100).toStringAsFixed(1)}%'),
-                      ],
-                    ),
-                    
-                    // 最低バー間隔
-                    const Text('最低バー間隔:'),
-                    Row(
-                      children: [
-                        const Text('1'),
-                        Expanded(
-                          child: Slider(
-                            value: (_appSettings?.trendFilteringMinGapBars ?? 5).toDouble(),
-                            min: 1,
-                            max: 20,
-                            divisions: 19,
-                            onChanged: (double value) {
-                              if (_appSettings != null) {
-                                dialogSetState(() {
-                                  _appSettings = _appSettings!.copyWith(trendFilteringMinGapBars: value.round());
-                                });
-                              }
-                            },
-                          ),
-                        ),
-                        Text('${_appSettings?.trendFilteringMinGapBars ?? 5}バー'),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
                     // K線データ制限設定
                     const Text('K線データ制限設定:', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 8),
@@ -1768,39 +1662,6 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
     );
   }
 
-  /// トレンドフィルタリングの切り替え
-  void _toggleTrendFiltering() {
-    LogService.instance.info('Main', 'トレンドフィルタリング切り替え開始');
-    
-    setState(() {
-      final currentEnabled = _appSettings?.isTrendFilteringEnabled ?? false;
-      LogService.instance.info('Main', '現在の状態: $currentEnabled -> ${!currentEnabled}');
-      
-      _appSettings = _appSettings?.copyWith(
-        isTrendFilteringEnabled: !currentEnabled,
-      );
-      
-      LogService.instance.info('Main', '設定更新後: ${_appSettings?.isTrendFilteringEnabled}');
-      LogService.instance.info('Main', '新しい設定値: isTrendFilteringEnabled=${_appSettings?.isTrendFilteringEnabled}');
-    });
-    
-    _saveSettings();
-    
-    // 状態メッセージを表示
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: SelectableText(
-          _appSettings?.isTrendFilteringEnabled == true 
-            ? 'トレンドフィルタリングが有効になりました' 
-            : 'トレンドフィルタリングが無効になりました'
-        ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-    
-    LogService.instance.info('Main', 'トレンドフィルタリング切り替え完了');
-  }
-
   /// 移动平均线趋势背景切换
   void _toggleMaTrendBackground() {
     LogService.instance.info('Main', '移动平均线趋势背景切换开始');
@@ -1993,11 +1854,6 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
       isWavePointsLineVisible: _appSettings?.isWavePointsLineVisible,
       isOhlcVisible: _appSettings?.isOhlcVisible,
       isKlineVisible: _appSettings?.isKlineVisible,
-      isTrendFilteringEnabled: _appSettings?.isTrendFilteringEnabled,
-      trendFilteringThreshold: _appSettings?.trendFilteringThreshold,
-      trendFilteringNearThreshold: _appSettings?.trendFilteringNearThreshold,
-      trendFilteringFarThreshold: _appSettings?.trendFilteringFarThreshold,
-      trendFilteringMinGapBars: _appSettings?.trendFilteringMinGapBars,
       isMaTrendBackgroundEnabled: _appSettings?.isMaTrendBackgroundEnabled,
       isMousePositionZoomEnabled: _appSettings?.isMousePositionZoomEnabled,
       isAutoUpdateEnabled: _appSettings?.isAutoUpdateEnabled,

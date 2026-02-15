@@ -7,7 +7,6 @@ class ChartObjectLayer2IndicatorBuilder {
   static void append(
     List<ChartObject> objects, {
     required ChartViewController controller,
-    required bool includeTrendFiltering,
   }) {
     int? timestampFromIndex(dynamic rawIndex) {
       if (rawIndex is! int) return null;
@@ -115,117 +114,5 @@ class ChartObjectLayer2IndicatorBuilder {
       );
     }
 
-    if (!includeTrendFiltering) return;
-
-    final filtered = controller.filteredWavePoints;
-    if (filtered == null) return;
-
-    for (int i = 0; i < filtered.originalPoints.length; i++) {
-      final point = filtered.originalPoints[i];
-      final type = point['type'] as String;
-      final int pointIndex = point['index'] as int;
-      objects.add(
-        FilteredWavePointObject(
-          id: 'filtered-original-$i-${point['index']}',
-          index: pointIndex,
-          timestamp: timestampFromIndex(pointIndex),
-          price: (point['value'] as num).toDouble(),
-          pointKind: type == 'high' ? 'original_high' : 'original_low',
-          layer: ChartObjectLayer.aboveIndicators,
-        ),
-      );
-    }
-
-    for (int i = 0; i < filtered.filteredHighPoints.length; i++) {
-      final point = filtered.filteredHighPoints[i];
-      final int pointIndex = point['index'] as int;
-      objects.add(
-        FilteredWavePointObject(
-          id: 'filtered-high-$i-${point['index']}',
-          index: pointIndex,
-          timestamp: timestampFromIndex(pointIndex),
-          price: (point['value'] as num).toDouble(),
-          pointKind: 'filtered_high',
-          layer: ChartObjectLayer.aboveIndicators,
-        ),
-      );
-    }
-
-    for (int i = 0; i < filtered.filteredLowPoints.length; i++) {
-      final point = filtered.filteredLowPoints[i];
-      final int pointIndex = point['index'] as int;
-      objects.add(
-        FilteredWavePointObject(
-          id: 'filtered-low-$i-${point['index']}',
-          index: pointIndex,
-          timestamp: timestampFromIndex(pointIndex),
-          price: (point['value'] as num).toDouble(),
-          pointKind: 'filtered_low',
-          layer: ChartObjectLayer.aboveIndicators,
-        ),
-      );
-    }
-
-    for (int i = 0; i < filtered.trendLines.length; i++) {
-      final line = filtered.trendLines[i];
-      final style = _trendLineStyle(line.strengthLevel, line.type);
-
-      objects.add(
-        TrendAnalysisLineObject(
-          id: 'analysis-trend-$i-${line.startIndex}-${line.endIndex}',
-          start: CandleAnchor(
-            index: line.startIndex,
-            price: line.startValue,
-            timestamp: timestampFromIndex(line.startIndex),
-          ),
-          end: CandleAnchor(
-            index: line.endIndex,
-            price: line.endValue,
-            timestamp: timestampFromIndex(line.endIndex),
-          ),
-          color: style.$1,
-          width: style.$2,
-          direction: line.direction,
-          layer: ChartObjectLayer.aboveIndicators,
-        ),
-      );
-    }
-
-    final smoothPoints = filtered.smoothTrendLine?.points;
-    if (smoothPoints != null && smoothPoints.length > 1) {
-      objects.add(
-        SmoothTrendPolylineObject(
-          id: 'analysis-smooth-trend',
-          points: smoothPoints
-              .map(
-                (point) {
-                  final int pointIndex = point['index'] as int;
-                  return CandleAnchor(
-                    index: pointIndex,
-                    price: (point['value'] as num).toDouble(),
-                    timestamp: timestampFromIndex(pointIndex),
-                  );
-                },
-              )
-              .toList(),
-          color: '#FF9800',
-          width: 4.0,
-          layer: ChartObjectLayer.aboveIndicators,
-        ),
-      );
-    }
-  }
-
-  static (String, double) _trendLineStyle(String strengthLevel, String type) {
-    switch (strengthLevel) {
-      case 'strong':
-        return (type == 'high' ? '#4CAF50' : '#F44336', 3.0);
-      case 'moderate':
-        return (type == 'high' ? '#81C784' : '#E57373', 2.5);
-      case 'weak':
-        return (type == 'high' ? '#A5D6A7' : '#EF9A9A', 2.0);
-      default:
-        return (type == 'high' ? '#C8E6C9' : '#FFCDD2', 1.5);
-    }
   }
 }

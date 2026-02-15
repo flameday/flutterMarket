@@ -10,7 +10,6 @@ class ChartObjectFactory {
     required ChartViewController controller,
     List<TrendLineObject> trendLines = const [],
     String? selectedTrendLineId,
-    bool includeTrendFiltering = false,
     bool includeFibonacciForSelectedTrendLine = false,
   }) {
     final objects = <ChartObject>[];
@@ -18,7 +17,6 @@ class ChartObjectFactory {
     ChartObjectLayer2IndicatorBuilder.append(
       objects,
       controller: controller,
-      includeTrendFiltering: includeTrendFiltering,
     );
 
     ChartObjectLayer3InteractionBuilder.append(

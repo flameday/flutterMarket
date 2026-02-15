@@ -14,7 +14,6 @@ import '../controllers/moving_average_controller.dart';
 import '../controllers/chart_zoom_controller.dart';
 import '../controllers/wave_points_controller.dart';
 import '../controllers/manual_high_low_controller.dart';
-import '../services/trend_filtering_service.dart';
 import '../services/kline_nearby_high_low_strategy_service.dart';
 import '../utils/kline_timestamp_utils.dart';
 import '../models/manual_high_low_point.dart';
@@ -119,14 +118,6 @@ class ChartViewController extends _ChartControllerBase
   // 时间周期和交易对
   Timeframe? _selectedTimeframe;
   TradingPair? _selectedTradingPair;
-
-  // トレンドフィルタリング関連
-  bool _isTrendFilteringEnabled = false;
-  double _trendFilteringThreshold = 0.005; // デフォルト0.5%
-  double _trendFilteringNearThreshold = 0.01; // デフォルト1%
-  double _trendFilteringFarThreshold = 0.02; // デフォルト2%
-  int _trendFilteringMinGapBars = 5; // デフォルト5バー
-  FilteredWavePoints? _filteredWavePoints;
 
   int get dataLength => data.length;
   List<ManualHighLowPoint> get strategyHighLowPoints => _strategyHighLowPoints;
@@ -669,165 +660,6 @@ class ChartViewController extends _ChartControllerBase
   /// UI更新コールバックを設定する
   void setOnUIUpdate(Function()? callback) {
     _onUIUpdate = callback;
-  }
-
-  // ==================== トレンドフィルタリング関連 ====================
-
-  /// トレンドフィルタリングが有効かどうか
-  bool get isTrendFilteringEnabled => _isTrendFilteringEnabled;
-
-  /// トレンドフィルタリング閾値
-  double get trendFilteringThreshold => _trendFilteringThreshold;
-
-  /// フィルタリングされた高低点データを取得
-  FilteredWavePoints? get filteredWavePoints => _filteredWavePoints;
-
-  /// トレンドフィルタリングを有効/無効にする
-  void setTrendFilteringEnabled(bool enabled) {
-    LogService.instance.info('ChartViewController', 'setTrendFilteringEnabled呼び出し: $enabled');
-    
-    if (_isTrendFilteringEnabled != enabled) {
-      _isTrendFilteringEnabled = enabled;
-      LogService.instance.info('ChartViewController', 'トレンドフィルタリング状態変更: ${enabled ? "有効" : "無効"}');
-    } else {
-      LogService.instance.info('ChartViewController', 'トレンドフィルタリング状態変更なし: $enabled');
-    }
-    
-    // 状態に関係なく、有効な場合は常に更新を実行
-    if (enabled) {
-      LogService.instance.info('ChartViewController', 'トレンドフィルタリング強制更新実行');
-      _updateFilteredWavePoints();
-      notifyUIUpdate();
-    }
-  }
-
-  /// トレンドフィルタリング閾値を設定
-  void setTrendFilteringThreshold(double threshold) {
-    if (_trendFilteringThreshold != threshold) {
-      _trendFilteringThreshold = threshold;
-      Log.info('ChartViewController', 'トレンドフィルタリング閾値: ${(threshold * 100).toStringAsFixed(2)}%');
-      if (_isTrendFilteringEnabled) {
-        _updateFilteredWavePoints();
-        notifyUIUpdate();
-      }
-    }
-  }
-
-  /// トレンドフィルタリング近い距離閾値を設定
-  void setTrendFilteringNearThreshold(double threshold) {
-    if (_trendFilteringNearThreshold != threshold) {
-      _trendFilteringNearThreshold = threshold;
-      if (_isTrendFilteringEnabled) {
-        _updateFilteredWavePoints();
-        notifyUIUpdate();
-      }
-    }
-  }
-
-  /// トレンドフィルタリング遠い距離閾値を設定
-  void setTrendFilteringFarThreshold(double threshold) {
-    if (_trendFilteringFarThreshold != threshold) {
-      _trendFilteringFarThreshold = threshold;
-      if (_isTrendFilteringEnabled) {
-        _updateFilteredWavePoints();
-        notifyUIUpdate();
-      }
-    }
-  }
-
-  /// トレンドフィルタリング最低バー間隔を設定
-  void setTrendFilteringMinGapBars(int minGapBars) {
-    if (_trendFilteringMinGapBars != minGapBars) {
-      _trendFilteringMinGapBars = minGapBars;
-      if (_isTrendFilteringEnabled) {
-        _updateFilteredWavePoints();
-        notifyUIUpdate();
-      }
-    }
-  }
-
-  /// フィルタリングされた高低点を更新
-  void _updateFilteredWavePoints() {
-    LogService.instance.info('ChartViewController', '_updateFilteredWavePoints開始');
-    LogService.instance.info('ChartViewController', 'isTrendFilteringEnabled: $_isTrendFilteringEnabled');
-    LogService.instance.info('ChartViewController', 'wavePoints: ${wavePoints != null ? "存在" : "null"}');
-    LogService.instance.info('ChartViewController', 'data.length: ${data.length}');
-    
-    if (!_isTrendFilteringEnabled) {
-      LogService.instance.info('ChartViewController', 'トレンドフィルタリング無効、_filteredWavePointsをnullに設定');
-      _filteredWavePoints = null;
-      return;
-    }
-    
-    // wavePointsがnullの場合は計算を試行
-    if (wavePoints == null) {
-      LogService.instance.info('ChartViewController', 'wavePointsがnull、計算を試行');
-      onDataUpdatedForWavePoints();
-      
-      if (wavePoints == null) {
-        LogService.instance.warning('ChartViewController', 'wavePoints計算後もnull、_filteredWavePointsをnullに設定');
-        _filteredWavePoints = null;
-        return;
-      }
-    }
-
-    try {
-      LogService.instance.info('ChartViewController', '移動平均データ取得開始');
-      final maData = getMovingAveragesData();
-      LogService.instance.info('ChartViewController', '移動平均データ取得完了: ${maData.keys.toList()}');
-      
-      final ma150Series = maData[150];
-      LogService.instance.info('ChartViewController', '150均線データ: ${ma150Series != null ? "存在" : "null"}');
-      
-      if (ma150Series == null || ma150Series.isEmpty) {
-        LogService.instance.warning('ChartViewController', '150均線データが利用できません');
-        _filteredWavePoints = null;
-        return;
-      }
-
-      LogService.instance.info('ChartViewController', 'トレンドフィルタリング実行開始');
-      LogService.instance.info('ChartViewController', '元の高低点: ${wavePoints!.mergedPoints.length}個');
-      LogService.instance.info('ChartViewController', '閾値: ${(_trendFilteringThreshold * 100).toStringAsFixed(2)}%');
-      
-      _filteredWavePoints = TrendFilteringService.instance.filterByMA150(
-        wavePoints!,
-        data,
-        ma150Series,
-        nearThreshold: _trendFilteringNearThreshold,
-        farThreshold: _trendFilteringFarThreshold,
-        minGapBars: _trendFilteringMinGapBars,
-      );
-
-      LogService.instance.info('ChartViewController', 
-        'フィルタリング完了: 元${wavePoints!.mergedPoints.length}個 → フィルタ後${_filteredWavePoints!.totalFilteredPoints}個 (フィルタ率${(_filteredWavePoints!.filteringRate * 100).toStringAsFixed(1)}%)');
-      LogService.instance.info('ChartViewController', 'トレンドライン数: ${_filteredWavePoints!.trendLines.length}本');
-      LogService.instance.info('ChartViewController', '滑らかな折線: ${_filteredWavePoints!.smoothTrendLine != null ? "存在" : "null"}');
-    } catch (e) {
-      LogService.instance.error('ChartViewController', 'トレンドフィルタリング失敗: $e');
-      _filteredWavePoints = null;
-    }
-  }
-
-  /// 動的閾値を計算して設定
-  void calculateAndSetDynamicThreshold() {
-    try {
-      final maData = getMovingAveragesData();
-      final ma150Series = maData[150];
-      
-      if (ma150Series == null || ma150Series.isEmpty) {
-        Log.warning('ChartViewController', '150均線データが利用できません');
-        return;
-      }
-
-      final dynamicThreshold = TrendFilteringService.instance.calculateDynamicThreshold(
-        data,
-        ma150Series,
-      );
-
-      setTrendFilteringThreshold(dynamicThreshold);
-    } catch (e) {
-      Log.error('ChartViewController', '動的閾値計算失敗: $e');
-    }
   }
 
   /// 导航到指定索引

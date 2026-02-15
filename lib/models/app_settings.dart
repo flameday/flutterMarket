@@ -15,11 +15,6 @@ class AppSettings {
   final Map<int, String> maColors; // MA色設定
   final Map<int, double> maAlphas; // MA透明度設定
   final List<int> maPeriods;
-  final bool isTrendFilteringEnabled; // トレンドフィルタリング有効/無効
-  final double trendFilteringThreshold; // トレンドフィルタリング閾値
-  final double trendFilteringNearThreshold; // 近い距離の閾値
-  final double trendFilteringFarThreshold; // 遠い距離の閾値
-  final int trendFilteringMinGapBars; // 最低バー間隔
   final bool isGridVisible;
   final bool isCrosshairVisible;
   final String themeMode; // 'light', 'dark', 'system'
@@ -75,11 +70,6 @@ class AppSettings {
       2: 1.0, 3: 1.0, 10: 1.0, 13: 1.0, 30: 1.0, 60: 1.0, 150: 1.0, 300: 1.0, 750: 1.0
     },
       this.maPeriods = const [2, 3, 10, 13, 30, 60, 150, 300, 750],
-      this.isTrendFilteringEnabled = false,
-      this.trendFilteringThreshold = 0.005, // デフォルト0.5%
-      this.trendFilteringNearThreshold = 0.005, // デフォルト0.5%
-      this.trendFilteringFarThreshold = 0.015, // デフォルト1.5%
-      this.trendFilteringMinGapBars = 3, // デフォルト3バー
     this.isGridVisible = true,
     this.isCrosshairVisible = true,
     this.themeMode = 'system',
@@ -123,11 +113,6 @@ class AppSettings {
       maColors: _parseMaColors(json['maColors']) ?? defaults.maColors,
       maAlphas: _parseMaAlphas(json['maAlphas']) ?? defaults.maAlphas,
       maPeriods: _parseMaPeriods(json['maPeriods']) ?? defaults.maPeriods,
-      isTrendFilteringEnabled: json['isTrendFilteringEnabled'] ?? defaults.isTrendFilteringEnabled,
-      trendFilteringThreshold: (json['trendFilteringThreshold'] ?? defaults.trendFilteringThreshold).toDouble(),
-      trendFilteringNearThreshold: (json['trendFilteringNearThreshold'] ?? defaults.trendFilteringNearThreshold).toDouble(),
-      trendFilteringFarThreshold: (json['trendFilteringFarThreshold'] ?? defaults.trendFilteringFarThreshold).toDouble(),
-      trendFilteringMinGapBars: json['trendFilteringMinGapBars'] ?? defaults.trendFilteringMinGapBars,
       isGridVisible: json['isGridVisible'] ?? defaults.isGridVisible,
       isCrosshairVisible: json['isCrosshairVisible'] ?? defaults.isCrosshairVisible,
       themeMode: json['themeMode'] ?? defaults.themeMode,
@@ -178,11 +163,6 @@ class AppSettings {
       'maColors': maColors.map((key, value) => MapEntry(key.toString(), value)),
       'maAlphas': maAlphas.map((key, value) => MapEntry(key.toString(), value)),
       'maPeriods': maPeriods,
-      'isTrendFilteringEnabled': isTrendFilteringEnabled,
-      'trendFilteringThreshold': trendFilteringThreshold,
-      'trendFilteringNearThreshold': trendFilteringNearThreshold,
-      'trendFilteringFarThreshold': trendFilteringFarThreshold,
-      'trendFilteringMinGapBars': trendFilteringMinGapBars,
       'isGridVisible': isGridVisible,
       'isCrosshairVisible': isCrosshairVisible,
       'themeMode': themeMode,
@@ -221,11 +201,6 @@ class AppSettings {
     Map<int, String>? maColors,
     Map<int, double>? maAlphas,
     List<int>? maPeriods,
-    bool? isTrendFilteringEnabled,
-    double? trendFilteringThreshold,
-    double? trendFilteringNearThreshold,
-    double? trendFilteringFarThreshold,
-    int? trendFilteringMinGapBars,
     bool? isGridVisible,
     bool? isCrosshairVisible,
     String? themeMode,
@@ -260,11 +235,6 @@ class AppSettings {
       maColors: maColors ?? this.maColors,
       maAlphas: maAlphas ?? this.maAlphas,
       maPeriods: maPeriods ?? this.maPeriods,
-      isTrendFilteringEnabled: isTrendFilteringEnabled ?? this.isTrendFilteringEnabled,
-      trendFilteringThreshold: trendFilteringThreshold ?? this.trendFilteringThreshold,
-      trendFilteringNearThreshold: trendFilteringNearThreshold ?? this.trendFilteringNearThreshold,
-      trendFilteringFarThreshold: trendFilteringFarThreshold ?? this.trendFilteringFarThreshold,
-      trendFilteringMinGapBars: trendFilteringMinGapBars ?? this.trendFilteringMinGapBars,
       isGridVisible: isGridVisible ?? this.isGridVisible,
       isCrosshairVisible: isCrosshairVisible ?? this.isCrosshairVisible,
       themeMode: themeMode ?? this.themeMode,
