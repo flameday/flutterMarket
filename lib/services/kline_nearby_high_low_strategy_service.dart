@@ -220,27 +220,30 @@ class KlineNearbyHighLowStrategyService {
   ) {
     if (points.length < 2) return points;
 
+    final List<ManualHighLowPoint> ordered = List<ManualHighLowPoint>.from(points)
+      ..sort((a, b) => a.timestamp.compareTo(b.timestamp));
+
     final List<ManualHighLowPoint> merged = [];
     int i = 0;
-    while (i < points.length) {
-      ManualHighLowPoint best = points[i];
+    while (i < ordered.length) {
+      ManualHighLowPoint best = ordered[i];
       int j = i + 1;
 
-      while (j < points.length && points[j].isHigh == best.isHigh) {
-        final ManualHighLowPoint current = points[j];
-        if (best.isHigh && current.price > best.price) {
-          best = current;
+      while (j < ordered.length && ordered[j].isHigh == best.isHigh) {
+        final ManualHighLowPoint current = ordered[j];
+        if (best.isHigh) {
+          if (current.price > best.price) {
+            best = current;
+          }
+        } else {
+          if (current.price < best.price) {
+            best = current;
+          }
         }
         j++;
       }
 
-      if (best.isHigh) {
-        merged.add(best);
-      } else {
-        for (int k = i; k < j; k++) {
-          merged.add(points[k]);
-        }
-      }
+      merged.add(best);
       i = j;
     }
 

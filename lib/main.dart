@@ -967,12 +967,37 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
 
   /// 設定ダイアログを表示
   void _showSettingsDialog() {
+    Offset dialogOffset = Offset.zero;
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return StatefulBuilder(builder: (context, dialogSetState) {
-          return AlertDialog(
-            title: const Text('アプリケーション設定'),
+          return Transform.translate(
+            offset: dialogOffset,
+            child: AlertDialog(
+            titlePadding: EdgeInsets.zero,
+            title: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onPanUpdate: (details) {
+                dialogSetState(() {
+                  dialogOffset += details.delta;
+                });
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                ),
+                child: Row(
+                  children: const [
+                    Icon(Icons.drag_indicator, size: 18),
+                    SizedBox(width: 8),
+                    Expanded(child: Text('アプリケーション設定')),
+                  ],
+                ),
+              ),
+            ),
             content: SizedBox(
               width: 400,
               child: SingleChildScrollView(
@@ -1106,6 +1131,73 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                           child: Text('仅显示补充点（Debug）'),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    Row(
+                      children: [
+                        Checkbox(
+                          value: _appSettings?.isStrategyPolylineVisible ?? false,
+                          onChanged: (bool? value) {
+                            if (_appSettings != null) {
+                              dialogSetState(() {
+                                _appSettings = _appSettings!.copyWith(
+                                  isStrategyPolylineVisible: value ?? false,
+                                );
+                              });
+                              setState(() {});
+                            }
+                          },
+                        ),
+                        const Expanded(child: Text('第三步: 折线连接高低点')),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    const Text('折线颜色:'),
+                    DropdownButtonFormField<String>(
+                      initialValue: _appSettings?.strategyPolylineColor ?? '#FFEB3B',
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      ),
+                      items: const [
+                        DropdownMenuItem(value: '#FFEB3B', child: Text('黄色')),
+                        DropdownMenuItem(value: '#FF9800', child: Text('橙色')),
+                        DropdownMenuItem(value: '#00BCD4', child: Text('青色')),
+                        DropdownMenuItem(value: '#FFFFFF', child: Text('白色')),
+                        DropdownMenuItem(value: '#4CAF50', child: Text('绿色')),
+                      ],
+                      onChanged: (String? newValue) {
+                        if (newValue != null && _appSettings != null) {
+                          dialogSetState(() {
+                            _appSettings = _appSettings!.copyWith(
+                              strategyPolylineColor: newValue,
+                            );
+                          });
+                          setState(() {});
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 8),
+
+                    Text('折线粗细: ${(_appSettings?.strategyPolylineWidth ?? 2.0).toStringAsFixed(1)}'),
+                    Slider(
+                      value: (_appSettings?.strategyPolylineWidth ?? 2.0).clamp(1.0, 8.0),
+                      min: 1.0,
+                      max: 8.0,
+                      divisions: 14,
+                      label: (_appSettings?.strategyPolylineWidth ?? 2.0).toStringAsFixed(1),
+                      onChanged: (double value) {
+                        if (_appSettings != null) {
+                          dialogSetState(() {
+                            _appSettings = _appSettings!.copyWith(
+                              strategyPolylineWidth: value,
+                            );
+                          });
+                          setState(() {});
+                        }
+                      },
                     ),
                     const SizedBox(height: 8),
 
@@ -1455,6 +1547,7 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
                 child: const Text('保存'),
               ),
             ],
+          ),
           );
         });
       },
@@ -1917,6 +2010,9 @@ class _PriceDataHomePageState extends State<PriceDataHomePage> {
       highLowMarkerOffset: _appSettings?.highLowMarkerOffset,
       isStrategyMergeConsecutiveEnabled: _appSettings?.isStrategyMergeConsecutiveEnabled,
       isStrategySupplementOnlyEnabled: _appSettings?.isStrategySupplementOnlyEnabled,
+      isStrategyPolylineVisible: _appSettings?.isStrategyPolylineVisible,
+      strategyPolylineColor: _appSettings?.strategyPolylineColor,
+      strategyPolylineWidth: _appSettings?.strategyPolylineWidth,
       onDownloadRequested: _handleDownloadRequest,
       onAutoUpdateToggled: _handleAutoUpdateToggle,
       selectedTimeframe: _selectedTimeframe,

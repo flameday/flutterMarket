@@ -37,12 +37,18 @@ class AppSettings {
   final double highLowMarkerOffset;
     final bool? _isStrategyMergeConsecutiveEnabled;
     final bool? _isStrategySupplementOnlyEnabled;
+    final bool? _isStrategyPolylineVisible;
+    final String? _strategyPolylineColor;
+    final double? _strategyPolylineWidth;
   final DateTime lastUpdated;
 
     bool get isStrategyMergeConsecutiveEnabled =>
       _isStrategyMergeConsecutiveEnabled ?? true;
     bool get isStrategySupplementOnlyEnabled =>
       _isStrategySupplementOnlyEnabled ?? false;
+      bool get isStrategyPolylineVisible => _isStrategyPolylineVisible ?? false;
+      String get strategyPolylineColor => _strategyPolylineColor ?? '#FFEB3B';
+      double get strategyPolylineWidth => _strategyPolylineWidth ?? 2.0;
 
   const AppSettings({
     this.selectedTradingPair = TradingPair.eurusd,
@@ -91,9 +97,15 @@ class AppSettings {
     this.highLowMarkerOffset = 0.0,
     bool? isStrategyMergeConsecutiveEnabled = true,
     bool? isStrategySupplementOnlyEnabled = false,
+    bool? isStrategyPolylineVisible = false,
+    String? strategyPolylineColor = '#FFEB3B',
+    double? strategyPolylineWidth = 2.0,
     required this.lastUpdated,
   })  : _isStrategyMergeConsecutiveEnabled = isStrategyMergeConsecutiveEnabled,
-        _isStrategySupplementOnlyEnabled = isStrategySupplementOnlyEnabled;
+      _isStrategySupplementOnlyEnabled = isStrategySupplementOnlyEnabled,
+      _isStrategyPolylineVisible = isStrategyPolylineVisible,
+      _strategyPolylineColor = strategyPolylineColor,
+      _strategyPolylineWidth = strategyPolylineWidth;
 
   /// JSONからAppSettingsインスタンスを作成
   factory AppSettings.fromJson(Map<String, dynamic> json) {
@@ -139,6 +151,14 @@ class AppSettings {
         json['isStrategySupplementOnlyEnabled'],
         defaults.isStrategySupplementOnlyEnabled,
       ),
+      isStrategyPolylineVisible: _parseBool(
+        json['isStrategyPolylineVisible'],
+        defaults.isStrategyPolylineVisible,
+      ),
+      strategyPolylineColor:
+          _parseString(json['strategyPolylineColor'], defaults.strategyPolylineColor),
+      strategyPolylineWidth:
+          _parseDouble(json['strategyPolylineWidth'], defaults.strategyPolylineWidth),
       lastUpdated: DateTime.parse(json['lastUpdated'] ?? DateTime.now().toIso8601String()),
     );
   }
@@ -180,6 +200,9 @@ class AppSettings {
       'highLowMarkerOffset': highLowMarkerOffset,
       'isStrategyMergeConsecutiveEnabled': isStrategyMergeConsecutiveEnabled,
       'isStrategySupplementOnlyEnabled': isStrategySupplementOnlyEnabled,
+      'isStrategyPolylineVisible': isStrategyPolylineVisible,
+      'strategyPolylineColor': strategyPolylineColor,
+      'strategyPolylineWidth': strategyPolylineWidth,
       'lastUpdated': lastUpdated.toIso8601String(),
     };
   }
@@ -220,6 +243,9 @@ class AppSettings {
     double? highLowMarkerOffset,
     bool? isStrategyMergeConsecutiveEnabled,
     bool? isStrategySupplementOnlyEnabled,
+    bool? isStrategyPolylineVisible,
+    String? strategyPolylineColor,
+    double? strategyPolylineWidth,
   }) {
     return AppSettings(
       selectedTradingPair: selectedTradingPair ?? this.selectedTradingPair,
@@ -256,6 +282,9 @@ class AppSettings {
       highLowMarkerOffset: highLowMarkerOffset ?? this.highLowMarkerOffset,
       isStrategyMergeConsecutiveEnabled: isStrategyMergeConsecutiveEnabled ?? this.isStrategyMergeConsecutiveEnabled,
       isStrategySupplementOnlyEnabled: isStrategySupplementOnlyEnabled ?? this.isStrategySupplementOnlyEnabled,
+      isStrategyPolylineVisible: isStrategyPolylineVisible ?? this.isStrategyPolylineVisible,
+      strategyPolylineColor: strategyPolylineColor ?? this.strategyPolylineColor,
+      strategyPolylineWidth: strategyPolylineWidth ?? this.strategyPolylineWidth,
       lastUpdated: DateTime.now(),
     );
   }
@@ -401,6 +430,23 @@ class AppSettings {
       final String normalized = value.trim().toLowerCase();
       if (normalized == 'true' || normalized == '1') return true;
       if (normalized == 'false' || normalized == '0') return false;
+    }
+    return defaultValue;
+  }
+
+  static String _parseString(dynamic value, String defaultValue) {
+    if (value is String && value.isNotEmpty) {
+      return value;
+    }
+    return defaultValue;
+  }
+
+  static double _parseDouble(dynamic value, double defaultValue) {
+    if (value is double) return value;
+    if (value is num) return value.toDouble();
+    if (value is String) {
+      final double? parsed = double.tryParse(value);
+      if (parsed != null) return parsed;
     }
     return defaultValue;
   }

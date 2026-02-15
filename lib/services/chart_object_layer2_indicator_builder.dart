@@ -76,7 +76,8 @@ class ChartObjectLayer2IndicatorBuilder {
       );
     }
 
-    for (final point in controller.getStrategyHighLowPoints()) {
+    final strategyPoints = controller.getStrategyHighLowPoints();
+    for (final point in strategyPoints) {
       objects.add(
         ManualHighLowObject(
           id: point.id,
@@ -89,6 +90,26 @@ class ChartObjectLayer2IndicatorBuilder {
           markerShape: controller.highLowMarkerShape,
           markerSize: controller.highLowMarkerSize,
           markerOffset: controller.highLowMarkerOffset,
+          layer: ChartObjectLayer.aboveIndicators,
+        ),
+      );
+    }
+
+    if (controller.isStrategyPolylineVisible && strategyPoints.length > 1) {
+      objects.add(
+        WavePolylineObject(
+          id: 'strategy-high-low-polyline',
+          points: strategyPoints
+              .map(
+                (point) => CandleAnchor(
+                  index: -1,
+                  price: point.price,
+                  timestamp: point.timestamp,
+                ),
+              )
+              .toList(),
+          color: controller.strategyPolylineColor,
+          width: controller.strategyPolylineWidth,
           layer: ChartObjectLayer.aboveIndicators,
         ),
       );

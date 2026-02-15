@@ -140,6 +140,9 @@ class ChartViewController extends _ChartControllerBase
   double _highLowMarkerOffset = 0.0;
   bool _isStrategyMergeConsecutiveEnabled = true;
   bool _isStrategySupplementOnlyEnabled = false;
+  bool _isStrategyPolylineVisible = false;
+  String _strategyPolylineColor = '#FFEB3B';
+  double _strategyPolylineWidth = 2.0;
 
   // 旧版图表页面互換用プロパティ
   bool isFormattedWaveVisible = false;
@@ -154,6 +157,9 @@ class ChartViewController extends _ChartControllerBase
   double get highLowMarkerOffset => _highLowMarkerOffset;
   bool get isStrategyMergeConsecutiveEnabled => _isStrategyMergeConsecutiveEnabled;
   bool get isStrategySupplementOnlyEnabled => _isStrategySupplementOnlyEnabled;
+  bool get isStrategyPolylineVisible => _isStrategyPolylineVisible;
+  String get strategyPolylineColor => _strategyPolylineColor;
+  double get strategyPolylineWidth => _strategyPolylineWidth;
   
   void setTimeframe(String timeframe) {
     _currentTimeframe = timeframe;
@@ -186,6 +192,21 @@ class ChartViewController extends _ChartControllerBase
   void setStrategySupplementOnlyEnabled(bool enabled) {
     if (_isStrategySupplementOnlyEnabled == enabled) return;
     _isStrategySupplementOnlyEnabled = enabled;
+    notifyUIUpdate();
+  }
+
+  void setStrategyPolylineVisible(bool visible) {
+    if (_isStrategyPolylineVisible == visible) return;
+    _isStrategyPolylineVisible = visible;
+    notifyUIUpdate();
+  }
+
+  void setStrategyPolylineStyle({
+    required String color,
+    required double width,
+  }) {
+    _strategyPolylineColor = color;
+    _strategyPolylineWidth = width;
     notifyUIUpdate();
   }
 

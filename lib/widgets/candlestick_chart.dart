@@ -57,6 +57,9 @@ class CandlestickChart extends StatefulWidget {
   final double? highLowMarkerOffset;
   final bool? isStrategyMergeConsecutiveEnabled;
   final bool? isStrategySupplementOnlyEnabled;
+  final bool? isStrategyPolylineVisible;
+  final String? strategyPolylineColor;
+  final double? strategyPolylineWidth;
   final Timeframe? selectedTimeframe; // 选择的时间周期
   final TradingPair? selectedTradingPair; // 选择的交易对
   final Future<void> Function({bool showMessages})? onDownloadRequested; // データダウンロード要求コールバック
@@ -91,6 +94,9 @@ class CandlestickChart extends StatefulWidget {
     this.highLowMarkerOffset,
     this.isStrategyMergeConsecutiveEnabled,
     this.isStrategySupplementOnlyEnabled,
+    this.isStrategyPolylineVisible,
+    this.strategyPolylineColor,
+    this.strategyPolylineWidth,
     this.selectedTimeframe,
     this.selectedTradingPair,
     this.onDownloadRequested,
@@ -265,6 +271,13 @@ class _CandlestickChartState extends State<CandlestickChart> {
         widget.isStrategySupplementOnlyEnabled!,
       );
     }
+    if (widget.isStrategyPolylineVisible != null) {
+      _controller.setStrategyPolylineVisible(widget.isStrategyPolylineVisible!);
+    }
+    _controller.setStrategyPolylineStyle(
+      color: widget.strategyPolylineColor ?? _controller.strategyPolylineColor,
+      width: widget.strategyPolylineWidth ?? _controller.strategyPolylineWidth,
+    );
     
     // トレンドフィルタリング設定初期化
     if (widget.isTrendFilteringEnabled != null) {
@@ -381,6 +394,19 @@ class _CandlestickChartState extends State<CandlestickChart> {
         widget.isStrategySupplementOnlyEnabled != null) {
       _controller.setStrategySupplementOnlyEnabled(
         widget.isStrategySupplementOnlyEnabled!,
+      );
+    }
+
+    if (widget.isStrategyPolylineVisible != oldWidget.isStrategyPolylineVisible &&
+        widget.isStrategyPolylineVisible != null) {
+      _controller.setStrategyPolylineVisible(widget.isStrategyPolylineVisible!);
+    }
+
+    if (widget.strategyPolylineColor != oldWidget.strategyPolylineColor ||
+        widget.strategyPolylineWidth != oldWidget.strategyPolylineWidth) {
+      _controller.setStrategyPolylineStyle(
+        color: widget.strategyPolylineColor ?? _controller.strategyPolylineColor,
+        width: widget.strategyPolylineWidth ?? _controller.strategyPolylineWidth,
       );
     }
     
