@@ -17,8 +17,6 @@ import '../controllers/manual_high_low_controller.dart';
 import '../services/kline_nearby_high_low_strategy_service.dart';
 import '../utils/kline_timestamp_utils.dart';
 import '../models/manual_high_low_point.dart';
-import '../models/pullback_signal.dart';
-import '../services/kline_pullback_detection_service.dart';
 
 /// Mixin制約を満たすための抽象基底クラス
 abstract class _ChartControllerBase implements 
@@ -110,9 +108,6 @@ class ChartViewController extends _ChartControllerBase
   
   bool _isLoadingData = false;
   List<ManualHighLowPoint> _strategyHighLowPoints = [];
-  List<PullbackSignal> _pullbackSignals = [];
-  PullbackDetectionConfig _pullbackDetectionConfig =
-      const PullbackDetectionConfig();
   
   // UI更新回调函数
   Function()? _onUIUpdate;
@@ -126,7 +121,6 @@ class ChartViewController extends _ChartControllerBase
 
   int get dataLength => data.length;
   List<ManualHighLowPoint> get strategyHighLowPoints => _strategyHighLowPoints;
-  List<PullbackSignal> get pullbackSignals => _pullbackSignals;
   
   // 当前时间周期
   String _currentTimeframe = '5m'; // 默认5分钟
@@ -161,7 +155,6 @@ class ChartViewController extends _ChartControllerBase
   void setTimeframe(String timeframe) {
     _currentTimeframe = timeframe;
     _rebuildStrategyHighLowPoints();
-    _rebuildPullbackSignals();
     Log.info('ChartViewController', '时间周期设置为: $timeframe');
   }
 
@@ -208,12 +201,6 @@ class ChartViewController extends _ChartControllerBase
     notifyUIUpdate();
   }
 
-  void setPullbackDetectionConfig(PullbackDetectionConfig config) {
-    _pullbackDetectionConfig = config;
-    _rebuildPullbackSignals();
-    notifyUIUpdate();
-  }
-
   List<ManualHighLowPoint> getStrategyHighLowPoints() {
     if (!_isStrategySupplementOnlyEnabled) {
       return strategyHighLowPoints;
@@ -228,14 +215,6 @@ class ChartViewController extends _ChartControllerBase
       data,
       timeframe: _currentTimeframe,
       mergeConsecutive: _isStrategyMergeConsecutiveEnabled,
-    );
-  }
-
-  void _rebuildPullbackSignals() {
-    _pullbackSignals = KlinePullbackDetectionService.instance.detect(
-      data,
-      config: _pullbackDetectionConfig,
-      timeframe: _currentTimeframe,
     );
   }
 
@@ -269,7 +248,6 @@ class ChartViewController extends _ChartControllerBase
       initWavePoints();
       initManualHighLowPoints();
       _rebuildStrategyHighLowPoints();
-      _rebuildPullbackSignals();
     }
   }
   
@@ -310,7 +288,6 @@ class ChartViewController extends _ChartControllerBase
     if (!_didDataSnapshotChange(data, newData)) {
       data = newData;
       _rebuildStrategyHighLowPoints();
-      _rebuildPullbackSignals();
       return;
     }
 
@@ -331,7 +308,6 @@ class ChartViewController extends _ChartControllerBase
       startIndex = 0;
       endIndex = 0;
       _strategyHighLowPoints = [];
-      _pullbackSignals = [];
       return;
     }
 
@@ -340,7 +316,6 @@ class ChartViewController extends _ChartControllerBase
     // 波浪点を再計算
     onDataUpdatedForWavePoints();
     _rebuildStrategyHighLowPoints();
-    _rebuildPullbackSignals();
 
     if (!preserveView) {
       // 大量データの場合は表示範囲を制限
@@ -578,7 +553,6 @@ class ChartViewController extends _ChartControllerBase
         // ウェーブポイントを再計算
         onDataUpdatedForWavePoints();
         _rebuildStrategyHighLowPoints();
-        _rebuildPullbackSignals();
         
         // 应用klineDataLimit限制（如果设置了的话）
         LogService.instance.info('ChartViewController', '检查数据限制: klineDataLimit=$_klineDataLimit, 当前数据量=${data.length}');
@@ -601,7 +575,6 @@ class ChartViewController extends _ChartControllerBase
         }
 
         _rebuildStrategyHighLowPoints();
-        _rebuildPullbackSignals();
         
         // 表示範囲を調整（最新データを表示、大量データの場合は最後の制限件数を表示）
         const int maxDataLimit = ChartConstants.maxDataLimit;
